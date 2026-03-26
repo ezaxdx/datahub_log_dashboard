@@ -5,6 +5,8 @@ from oauth2client.service_account import ServiceAccountCredentials
 import plotly.express as px
 from datetime import datetime, timedelta
 
+st.set_page_config(page_title="Antigravity 대시보드", layout="wide")
+
 # --- 1. 데이터 연결 및 로드 (ANTIGRAVITY Logic) ---
 @st.cache_data(ttl=600)
 def load_data():
@@ -12,7 +14,7 @@ def load_data():
     creds_dict = st.secrets["gcp_service_account"]
     creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
     client = gspread.authorize(creds)
-    sh = client.open_by_url("https://docs.google.com/spreadsheets/d/1N0UUF2Qroqbukd37WRgur2FpjzxEXLevT79EB_GutEk/edit?usp=sharing")
+    sh = client.open_by_url(st.secrets["gcp_sheet_url"])
     
     # 중복 컬럼명 처리 함수 (브라우저1, 브라우저2 등) 및 없는 시트 방어 로직 추가
     def get_df_with_unique_columns(worksheet_name):
@@ -241,10 +243,9 @@ try:
         if not dff.empty and '부서' in dff.columns:
             all_depts.update(dff['부서'].dropna().astype(str).unique())
     all_depts = sorted(list(x for x in all_depts if x and x != "nan"))
-
-    # 부서 및 직급 선택 필터
-    sel_dept = st.sidebar.multiselect("부서명 (선택 안하면 전체 대상)", options=all_depts)
-    sel_rank = st.sidebar.multiselect("직급 그룹 (선택 안하면 전체 대상)", options=['실무자(사원/대리)', '관리자(차장↑)', '기타'])
+            
+    sel_dept = st.sidebar.multiselect("부서명", options=all_depts)
+    sel_rank = st.sidebar.multiselect("직급 그룹", options=['실무자(사원/대리)', '관리자(차장↑)', '기타'])
 
     st.sidebar.markdown("---")
     st.sidebar.header("🚨 경고 알림 설정")
@@ -254,7 +255,7 @@ try:
         help="설정하신 숫자 이상 제안서를 다운로드한 기록이 있는 경우 해당 셀을 붉은색으로 강조합니다."
     )
 
-    # 필터 적용
+    # 필터링 적용
     def filter_df(df):
         if df.empty: return df
         res = df.copy()
@@ -306,87 +307,113 @@ try:
 
     # 그래프 섹션
     st.subheader("🗓️ 일자별 활동 현황")
-    
-    trend_data = []
     if not f_login.empty and 'date' in f_login.columns:
-        log_cnt = f_login.groupby(f_login['date'].dt.date).size().reset_index(name='count')
-        log_cnt['type'] = '로그인'
-        trend_data.append(log_cnt)
-    
-    if not f_download.empty and 'date' in f_download.columns:
-        dl_cnt = f_download.groupby(f_download['date'].dt.date).size().reset_index(name='count')
-        dl_cnt['type'] = '다운로드(클릭/조회)'
-        trend_data.append(dl_cnt)
-
-    if trend_data:
-        df_trend = pd.concat(trend_data)
-        unique_dates = df_trend['date'].nunique()
-        
-        if unique_dates <= 1:
-            # 날짜가 하루뿐인 경우 꺾은선으로 표현불가하므로 강제 막대그래프
-            fig1 = px.bar(df_trend, x='date', y='count', color='type', barmode='group',
-                          title="일자별 상세 활동 현황")
-            fig1.update_xaxes(type='category', title_text="날짜")
-            fig1.update_yaxes(title_text="활동 건수")
-        else:
-            fig1 = px.line(df_trend, x='date', y='count', color='type', markers=True,
-                          title="일자별 상세 활동 현황 추이")
-            fig1.update_xaxes(title_text="날짜")
-            fig1.update_yaxes(title_text="활동 건수")
-            
-        st.plotly_chart(fig1, use_container_width=True)
+        daily_logs = f_login.groupby(f_login['date'].dt.date).size().reset_index(name='count')
+        st.line_chart(daily_logs.set_index('date'))
     else:
-        st.info("해당 조건에 해당하는 활동(로그인/다운로드) 데이터가 전혀 없습니다.")
+        st.info("해당 조건의 로그인 데이터가 없거나 로그인 일자 컬럼을 찾을 수 없습니다.")
 
-    # 직원별 상세 현황
-    st.subheader("👤 직원별 활동 로그 상세")
+    # 직원별 상세 현황 및 모니터링 레이아웃 분할
+    st.markdown("---")
+    main_col1, main_col2 = st.columns(2)
     
-    candidate_cols = ['UserNo', '이름', '부서', '직급']
-    user_table = pd.DataFrame()
-    login_cols = []
-    
-    if not f_login.empty:
-        login_cols = [col for col in candidate_cols if col in f_login.columns]
-        if login_cols:
-            user_table = f_login.groupby(login_cols).size().reset_index(name='로그인수')
+    with main_col1:
+        st.subheader("👤 직원별 활동 로그 상세")
+        
+        candidate_cols = ['UserNo', '이름', '부서', '직급']
+        user_table = pd.DataFrame()
+        login_cols = []
+        
+        if not f_login.empty:
+            login_cols = [col for col in candidate_cols if col in f_login.columns]
+            if login_cols:
+                user_table = f_login.groupby(login_cols).size().reset_index(name='로그인수')
 
-    if not f_proposal.empty:
-        prop_cols = [col for col in candidate_cols if col in f_proposal.columns]
-        if prop_cols:
-            prop_table = f_proposal.groupby(prop_cols).size().reset_index(name='제안서 다운로드수')
-            if not user_table.empty:
-                common_cols = list(set(login_cols).intersection(set(prop_cols)))
-                if common_cols:
-                    user_table = pd.merge(user_table, prop_table, on=common_cols, how='outer')
-            else:
-                user_table = prop_table
+        if not f_proposal.empty:
+            prop_cols = [col for col in candidate_cols if col in f_proposal.columns]
+            if prop_cols:
+                prop_table = f_proposal.groupby(prop_cols).size().reset_index(name='제안서 다운로드수')
+                if not user_table.empty:
+                    common_cols = list(set(login_cols).intersection(set(prop_cols)))
+                    if common_cols:
+                        user_table = pd.merge(user_table, prop_table, on=common_cols, how='outer')
+                else:
+                    user_table = prop_table
+                    user_table['로그인수'] = 0
+
+        if not user_table.empty:
+            if '로그인수' not in user_table.columns:
                 user_table['로그인수'] = 0
-
-    if not user_table.empty:
-        if '로그인수' not in user_table.columns:
-            user_table['로그인수'] = 0
-        if '제안서 다운로드수' not in user_table.columns:
-            user_table['제안서 다운로드수'] = 0
+            if '제안서 다운로드수' not in user_table.columns:
+                user_table['제안서 다운로드수'] = 0
+                
+            user_table['로그인수'] = user_table['로그인수'].fillna(0).astype(int)
+            user_table['제안서 다운로드수'] = user_table['제안서 다운로드수'].fillna(0).astype(int)
+            user_table['합계'] = user_table['로그인수'] + user_table['제안서 다운로드수']
             
-        user_table['로그인수'] = user_table['로그인수'].fillna(0).astype(int)
-        user_table['제안서 다운로드수'] = user_table['제안서 다운로드수'].fillna(0).astype(int)
-        user_table['합계'] = user_table['로그인수'] + user_table['제안서 다운로드수']
-        
-        user_table = user_table.sort_values(by='합계', ascending=False)
-        display_df = user_table.drop(columns=['합계'])
-        
-        # 설정된 과다 다운로드 기준치를 넘는 경우 해당 컬럼만 하이라이팅
-        def highlight_warning(row):
-            styles = [''] * len(row)
-            if row.get('제안서 다운로드수', 0) >= warning_threshold:
-                # 제안서 다운로드수 컬럼 인덱스를 찾아 해당 부분만 스타일 지정
-                col_idx = display_df.columns.get_loc('제안서 다운로드수')
-                styles[col_idx] = 'background-color: rgba(255, 75, 75, 0.15); color: #ff4b4b; font-weight: bold'
-            return styles
+            user_table = user_table.sort_values(by='합계', ascending=False)
+            display_df = user_table.drop(columns=['합계'])
+            
+            # 설정된 과다 다운로드 기준치를 넘는 경우 해당 컬럼만 하이라이팅
+            def highlight_warning(row):
+                styles = [''] * len(row)
+                if row.get('제안서 다운로드수', 0) >= warning_threshold:
+                    col_idx = display_df.columns.get_loc('제안서 다운로드수')
+                    styles[col_idx] = 'background-color: rgba(255, 75, 75, 0.15); color: #ff4b4b; font-weight: bold'
+                return styles
 
-        st.dataframe(display_df.style.apply(highlight_warning, axis=1), use_container_width=True, hide_index=True)
-    else:
-        st.info("상세 로그 데이터가 없습니다.")
+            st.dataframe(display_df.style.apply(highlight_warning, axis=1), use_container_width=True, hide_index=True)
+        else:
+            st.info("상세 로그 데이터가 없습니다.")
+
+    with main_col2:
+        st.subheader("🕵️ 단기간 제안서 과다 다운로더 모니터링")
+        
+        if not user_table.empty:
+            show_heavy_downloader = st.checkbox(f"제안서 기준치({warning_threshold}건 이상) 경고 사용자 심층 분석 보기", value=True)
+            
+            if show_heavy_downloader:
+                warned_users = user_table[user_table['제안서 다운로드수'] >= warning_threshold]['이름'].tolist()
+                if not warned_users:
+                    st.success("현재 기준치 이상 제안서를 다운로드한 사용자가 없습니다.")
+                else:
+                    st.warning(f"총 {len(warned_users)}명의 경고 대상자가 발견되었습니다.")
+                    heavy_logs = f_proposal[f_proposal['이름'].isin(warned_users)].copy()
+                    
+                    if not heavy_logs.empty:
+                        # '파일제목' 대신 '문서경로' 컬럼 사용
+                        doc_col = '문서경로' if '문서경로' in heavy_logs.columns else '비고'
+                        unique_counts = heavy_logs.groupby(['UserNo', '이름', '부서', '직급'])[doc_col].nunique().reset_index(name='열람한 고유 파일 개수')
+                        
+                        sort_col = '제안서 다운로드 일시' if '제안서 다운로드 일시' in heavy_logs.columns else 'date'
+                        timeline_cols = ['date', '이름', '부서', doc_col]
+                        if sort_col not in timeline_cols:
+                            timeline_cols.append(sort_col)
+                        
+                        timeline_df = heavy_logs[timeline_cols].copy()
+                        timeline_df = timeline_df.sort_values(by=['이름', sort_col], ascending=[True, False])
+                        timeline_df = timeline_df.rename(columns={doc_col: '조회 문서'})
+                        
+                        st.markdown("##### 📍 다운로드 의심 여부 (고유 조회 수)")
+                        st.caption("총 다운로드 수 대비 여러 개의 제안서를 넓게 볼수록(쇼핑) 위험도가 높습니다.")
+                        
+                        def highlight_unique(row):
+                            val = row.get('열람한 고유 파일 개수', 0)
+                            if val >= warning_threshold:
+                                return ['background-color: #ffcccc; color: #cc0000; font-weight:bold'] * len(row)
+                            elif val >= warning_threshold / 2:
+                                return ['background-color: #ffe6e6; color: #880000'] * len(row)
+                            return [''] * len(row)
+                                
+                        st.dataframe(unique_counts.style.apply(highlight_unique, axis=1), hide_index=True, use_container_width=True)
+                        
+                        st.markdown("##### 🕒 개별 다운로드 타임라인")
+                        st.caption("어떤 파일을 이어서 보았는지 분석합니다.")
+                        st.dataframe(timeline_df, hide_index=True, use_container_width=True)
+                    else:
+                        st.info("조건에 맞는 제안서 상세 기록을 불러올 수 없습니다.")
+        else:
+             st.info("비교할 데이터가 없습니다.")
 
 except FileNotFoundError:
     st.error("`.streamlit/secrets.toml` 파일에 GCP 인증 정보가 설정되지 않았거나 파일을 찾을 수 없습니다. 설정 후에 다시 시도해주세요.")
