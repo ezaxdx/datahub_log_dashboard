@@ -13,6 +13,8 @@ def load_data():
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
     creds = Credentials.from_service_account_info(st.secrets["gcp_service_account"], scopes=scope)
     client = gspread.authorize(creds)
+    sh = client.open_by_url(st.secrets["gcp_sheet_url"])
+
     
     # 중복 컬럼명 처리 함수 (브라우저1, 브라우저2 등) 및 없는 시트 방어 로직 추가
     def get_df_with_unique_columns(worksheet_name):
