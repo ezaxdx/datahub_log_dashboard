@@ -43,7 +43,10 @@ def load_data():
         df = pd.DataFrame(data[1:], columns=new_headers)
         # Type 유추 (get_all_records와 동일하게 숫자형 자동 변환 위함)
         for col in df.columns:
-            df[col] = pd.to_numeric(df[col], errors='ignore')
+            try:
+                df[col] = pd.to_numeric(df[col])
+            except (ValueError, TypeError):
+                pass
         return df
 
     # 각 시트 데이터 프레임화
