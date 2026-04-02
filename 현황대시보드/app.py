@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 import gspread
-from oauth2client.service_account import ServiceAccountCredentials
+from google.oauth2.service_account import Credentials
 import plotly.express as px
 from datetime import datetime, timedelta
 
@@ -11,10 +11,8 @@ st.set_page_config(page_title="Antigravity 대시보드", layout="wide")
 @st.cache_data(ttl=600)
 def load_data():
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-    creds_dict = st.secrets["gcp_service_account"]
     creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
     client = gspread.authorize(creds)
-    sh = client.open_by_url(st.secrets["gcp_sheet_url"])
     
     # 중복 컬럼명 처리 함수 (브라우저1, 브라우저2 등) 및 없는 시트 방어 로직 추가
     def get_df_with_unique_columns(worksheet_name):
