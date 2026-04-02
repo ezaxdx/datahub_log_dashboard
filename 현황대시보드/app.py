@@ -418,5 +418,6 @@ try:
 except FileNotFoundError:
     st.error("`.streamlit/secrets.toml` 파일에 GCP 인증 정보가 설정되지 않았거나 파일을 찾을 수 없습니다. 설정 후에 다시 시도해주세요.")
 except Exception as e:
+    import traceback
     st.error(f"데이터를 불러오는 중 오류가 발생했습니다: {e}")
-    st.info("Google Sheet API 연동, 시트 권한, 혹은 존재하지 않는 시트 탭이 있는지 확인해 주세요.")
+    st.code(traceback.format_exc())
