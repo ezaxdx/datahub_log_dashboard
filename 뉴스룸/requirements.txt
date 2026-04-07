@@ -1,0 +1,6 @@
+streamlit
+feedparser
+newspaper3k
+google-generativeai
+PyGithub
+plotly
