@@ -134,10 +134,9 @@ st.sidebar.markdown('<p style="font-size: 11px; font-weight: 700; color: #94a3b8
 
 pages = {
     "Total Dashboard": {"path": "pages/1_total.py", "icon": "fa-chart-line"},
-    "User Monitor": {"path": "pages/2_user.py", "icon": "fa-user-gear"},
-    "File Analysis": {"path": "pages/3_file.py", "icon": "fa-file-shield"},
-    "Dept & Team": {"path": "pages/4_department.py", "icon": "fa-building-columns"},
-    "Check KPI": {"path": "pages/5_kpi.py", "icon": "fa-circle-check"},
+    "File Analysis": {"path": "pages/2_user.py", "icon": "fa-file-shield"},
+    "Dept & Team": {"path": "pages/3_department.py", "icon": "fa-building-columns"},
+    "Check KPI": {"path": "pages/4_kpi.py", "icon": "fa-circle-check"},
     "Employee List": {"path": "pages/6_employee_list.py", "icon": "fa-users-viewfinder"}
 }
 
@@ -173,13 +172,33 @@ with st.sidebar.expander("🔍 상세 필터 (조회 기준)", expanded=False):
     df_u = st.session_state['df_users']
     dept_col = config.YEAR_COL_DEPT.format(year=config.CURRENT_YEAR)
     hq_col = config.YEAR_COL_HQ.format(year=config.CURRENT_YEAR)
+    div_col  = config.YEAR_COL_DIVISION.format(year=config.CURRENT_YEAR)
+
     if not df_u.empty:
         d_val = df_u[dept_col] if dept_col in df_u.columns else pd.Series([None] * len(df_u))
-        h_val = df_u[hq_col] if hq_col in df_u.columns else pd.Series([None] * len(df_u))
-        df_u['_ui_dept'] = d_val.fillna(h_val).fillna("소속불분명")
+        h_val = df_u[hq_col]   if hq_col   in df_u.columns else pd.Series([None] * len(df_u))
+        v_val = df_u[div_col]  if div_col  in df_u.columns else pd.Series([None] * len(df_u))
+
+        df_u["부서"] = d_val.replace("", None).fillna(h_val.replace("", None)).fillna(v_val.replace("", None))
+        df_u['_ui_dept'] = df_u["부서"].fillna("소속불분명")
+        
+        # 직급 그룹 생성 (df_users용)
+        rank_col = config.YEAR_COL_RANK.format(year=config.CURRENT_YEAR)
+        if rank_col in df_u.columns:
+            def group_rank_fn(rank):
+                if pd.isna(rank): return '기타'
+                rank_str = str(rank).strip()
+                if rank_str in ['사원', '대리', '주임', '연구원']: return '실무자(사원/대리)'
+                if rank_str in ['차장', '팀장', '부장', '본부장', '이사', '실장', '수석', '상무', '전무']: return '관리자(차장↑)'
+                if rank_str in ['임원']: return '임원'
+                return '기타'
+            df_u['직급그룹'] = df_u[rank_col].apply(group_rank_fn)
+        else:
+            df_u['직급그룹'] = '기타'
+
         all_depts = sorted(df_u['_ui_dept'].unique().tolist())
         st.session_state['sel_dept'] = st.multiselect("부서명", options=all_depts)
-        st.session_state['sel_rank'] = st.multiselect("직급 그룹", options=['실무자(사원/대리)', '관리자(차장↑)', '기타'])
+        st.session_state['sel_rank'] = st.multiselect("직급 그룹", options=['실무자(사원/대리)', '관리자(차장↑)', '임원'])
 
 # --- 3. 선택된 페이지 실행 ---
 current_page_info = pages[st.session_state['current_page']]

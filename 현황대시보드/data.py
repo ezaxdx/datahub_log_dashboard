@@ -173,10 +173,14 @@ def map_all(df_users, df_login, df_download, df_proposal):
             hq_col = config.YEAR_COL_HQ.format(year=y_str)
             rank_col = config.YEAR_COL_RANK.format(year=y_str)
             
-            # 부서명 Fallback: 부서명 없으면 본부/실
+            # 부서명 Fallback: 부서명(Dept) -> 본부/실(HQ) -> 사업부(Division)
             dept_val = row.get(dept_col)
             if pd.isna(dept_val) or str(dept_val).strip() == "":
                 dept_val = row.get(hq_col)
+            
+            if pd.isna(dept_val) or str(dept_val).strip() == "":
+                div_col = config.YEAR_COL_DIVISION.format(year=y_str)
+                dept_val = row.get(div_col)
             
             row['이름'] = row.get('임직원명', "")
             row['부서'] = dept_val
@@ -236,6 +240,17 @@ def run_all():
     데이터 로드부터 전처리까지 전체 프로세스를 실행합니다.
     """
     df_users, df_login, df_download, df_proposal = load_all()
+    
+    # [테스트 계정 제외] UserNo 556 제거 (명시적으로 문자열/숫자 모두 체크)
+    test_user = '556'
+    def exclude_test(df):
+        if df.empty or 'UserNo' not in df.columns: return df
+        return df[df['UserNo'].astype(str).str.strip().str.replace(r'\.0$', '', regex=True).str.zfill(3) != test_user.zfill(3)]
+
+    df_users = exclude_test(df_users)
+    df_login = exclude_test(df_login)
+    df_download = exclude_test(df_download)
+    df_proposal = exclude_test(df_proposal)
     
     # Preprocess (날짜/연도 추출)
     df_users, df_login, df_download, df_proposal = preprocess_all(df_users, df_login, df_download, df_proposal)

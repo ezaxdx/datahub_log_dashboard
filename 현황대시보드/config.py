@@ -11,6 +11,7 @@ BASE_DATE = "2025-01-17"
 YEAR_COL_DEPT = "{year}_부서명"
 YEAR_COL_HQ   = "{year}_본부/실"
 YEAR_COL_RANK = "{year}_통계 직급"
+YEAR_COL_DIVISION = "{year}_사업부"
 
 # 표준 이메일(ID) 컬럼명 (사용자 요청: PRS ID로 통일)
 COL_NAME_EMAIL = "PRS ID"
