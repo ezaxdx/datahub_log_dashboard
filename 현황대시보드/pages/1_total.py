@@ -64,11 +64,16 @@ f_proposal = filter_data(df_proposal)
 f_u = filter_data(df_u)
 
 # [수치 정합성] 부서/직급 정보가 없는 데이터를 '정보미등록'으로 채움
+# [수치 정합성] 
 for df in [f_login, f_download, f_proposal, f_u]:
     if not df.empty:
-        if '부서' in df.columns: df['부서'] = df['부서'].fillna('정보미등록').replace('', '정보미등록')
-        if '직급그룹' in df.columns: df['직급그룹'] = df['직급그룹'].fillna('정보미등록').replace('', '정보미등록')
-        if '_ui_dept' in df.columns: df['_ui_dept'] = df['_ui_dept'].fillna('정보미등록').replace('', '정보미등록')
+        # data.py에서 제공하는 표준 컬럼 사용 및 결측치 최종 보정과
+        if '부서' in df.columns: 
+            df['부서'] = df['부서'].replace(['', None, 'nan', 'NaN'], '정보미등록').fillna('정보미등록')
+        if '직급그룹' in df.columns: 
+            df['직급그룹'] = df['직급그룹'].replace(['', None, 'nan', 'NaN'], '정보미등록').fillna('정보미등록')
+        if '_ui_dept' in df.columns: 
+            df['_ui_dept'] = df['_ui_dept'].replace(['', None, 'nan', 'NaN'], '정보미등록').fillna('정보미등록')
 
 def get_menu_count(df, pattern):
     if df.empty or '경로 메뉴명' not in df.columns: return 0
@@ -152,8 +157,7 @@ with c1:
         fig = px.pie(login_dept, values='건수', names='부서', hole=0.6, color='부서', color_discrete_map=dept_color_map)
         fig.update_traces(textinfo='none', hovertemplate='%{label}<br>%{value}건 (%{percent})')
         fig.update_layout(showlegend=True, height=180, margin=dict(l=10, r=10, t=10, b=10),
-            legend=dict(orientation="v", yanchor="middle", y=0.5, xanchor="left", x=-0.5, font=dict(size=9)),
-            annotations=[dict(text=f'{int(total_login):,}', x=0.5, y=0.5, font_size=14, showarrow=False, font_weight='bold')])
+            legend=dict(orientation="v", yanchor="middle", y=0.5, xanchor="left", x=-0.5, font=dict(size=9)))
         st.plotly_chart(fig, use_container_width=True)
 
 with c2:
@@ -164,8 +168,7 @@ with c2:
         total_rate = (usage_dept['순사용자'].sum() / usage_dept['전체인원'].sum() * 100) if usage_dept['전체인원'].sum() > 0 else 0
         fig = px.pie(usage_dept, values='순사용자', names='_ui_dept', hole=0.6, color='_ui_dept', color_discrete_map=dept_color_map, custom_data=['사용률'])
         fig.update_traces(textinfo='none', hovertemplate='%{label}<br>사용률: %{customdata[0]}%')
-        fig.update_layout(showlegend=False, height=180, margin=dict(l=10, r=10, t=10, b=10),
-            annotations=[dict(text=f'{total_rate:.1f}%', x=0.5, y=0.5, font_size=18, showarrow=False, font_weight='bold')])
+        fig.update_layout(showlegend=False, height=180, margin=dict(l=10, r=10, t=10, b=10))
         st.plotly_chart(fig, use_container_width=True)
 
 with c3:
@@ -176,8 +179,7 @@ with c3:
         fig = px.pie(login_rank, values='건수', names='직급그룹', hole=0.6, color='직급그룹', color_discrete_map=rank_color_map)
         fig.update_traces(textinfo='none', hovertemplate='%{label}<br>%{value}건 (%{percent})')
         fig.update_layout(showlegend=True, height=180, margin=dict(l=10, r=10, t=10, b=10),
-            legend=dict(orientation="v", yanchor="middle", y=0.5, xanchor="left", x=-0.5, font=dict(size=9)),
-            annotations=[dict(text=f'{int(total_login_r):,}', x=0.5, y=0.5, font_size=14, showarrow=False, font_weight='bold')])
+            legend=dict(orientation="v", yanchor="middle", y=0.5, xanchor="left", x=-0.5, font=dict(size=9)))
         st.plotly_chart(fig, use_container_width=True)
 
 with c4:
@@ -188,6 +190,5 @@ with c4:
         total_rate_r = (usage_rank['순사용자'].sum() / usage_rank['전체인원'].sum() * 100) if usage_rank['전체인원'].sum() > 0 else 0
         fig = px.pie(usage_rank, values='순사용자', names='직급그룹', hole=0.6, color='직급그룹', color_discrete_map=rank_color_map, custom_data=['사용률'])
         fig.update_traces(textinfo='none', hovertemplate='%{label}<br>사용률: %{customdata[0]}%')
-        fig.update_layout(showlegend=False, height=180, margin=dict(l=10, r=10, t=10, b=10),
-            annotations=[dict(text=f'{total_rate_r:.1f}%', x=0.5, y=0.5, font_size=18, showarrow=False, font_weight='bold')])
+        fig.update_layout(showlegend=False, height=180, margin=dict(l=10, r=10, t=10, b=10))
         st.plotly_chart(fig, use_container_width=True)

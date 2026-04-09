@@ -67,18 +67,20 @@ f_u = filter_data(df_u)
 # [수치 정합성] 
 for df in [f_login, f_download, f_proposal, f_u]:
     if not df.empty:
-        if '부서' in df.columns: df['부서'] = df['부서'].fillna('정보미등록').replace('', '정보미등록')
-        if '직급' in df.columns: df['직급'] = df['직급'].fillna('정보미등록').replace('', '정보미등록')
-        if '직급그룹' in df.columns: df['직급그룹'] = df['직급그룹'].fillna('정보미등록').replace('', '정보미등록')
+        # data.py에서 제공하는 표준 컬럼 사용 및 결측치 최종 보원
+        if '부서' in df.columns: 
+            df['부서'] = df['부서'].replace(['', None, 'nan', 'NaN'], '정보미등록').fillna('정보미등록')
+        if '직급' in df.columns: 
+            df['직급'] = df['직급'].replace(['', None, 'nan', 'NaN'], '정보미등록').fillna('정보미등록')
+        if '직급그룹' in df.columns: 
+            df['직급그룹'] = df['직급그룹'].replace(['', None, 'nan', 'NaN'], '정보미등록').fillna('정보미등록')
 
 # --- 4. 섹션 1: 직원별 활동 상세내역 & 고유파일 열람 현황 ---
 col_s1_left, col_s1_right = st.columns([3, 1])
 
 # 고정 유저 데이터 (f_u 기준)
-rank_col = config.YEAR_COL_RANK.format(year=config.CURRENT_YEAR)
-
-user_base = f_u[['UserNo', '임직원명', '부서', rank_col]].copy()
-user_base.rename(columns={'임직원명': '이름', rank_col: '직급'}, inplace=True)
+# data.py에서 이미 '이름', '부서', '직급'이 표준화됨
+user_base = f_u[['UserNo', '이름', '부서', '직급']].copy()
 
 # 활동 집계
 login_agg = f_login.groupby('UserNo').size().reset_index(name='총로그인수')
