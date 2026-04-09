@@ -134,10 +134,10 @@ st.sidebar.markdown('<p style="font-size: 11px; font-weight: 700; color: #94a3b8
 
 pages = {
     "Total Dashboard": {"path": "pages/1_total.py", "icon": "fa-chart-line"},
-    "File Analysis": {"path": "pages/2_user.py", "icon": "fa-file-shield"},
+    "File Analysis": {"path": "pages/2_File_Analysis.py", "icon": "fa-file-shield"},
     "Dept & Team": {"path": "pages/3_department.py", "icon": "fa-building-columns"},
     "Check KPI": {"path": "pages/4_kpi.py", "icon": "fa-circle-check"},
-    "Employee List": {"path": "pages/6_employee_list.py", "icon": "fa-users-viewfinder"}
+    "Employee List": {"path": "pages/5_employee_list.py", "icon": "fa-users-viewfinder"}
 }
 
 if 'current_page' not in st.session_state:
