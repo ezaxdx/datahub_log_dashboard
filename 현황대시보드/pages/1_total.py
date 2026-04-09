@@ -1,19 +1,20 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
+import plotly.graph_objects as go
 from datetime import datetime, timedelta
 import config
 
-# --- [UI Helper: Metric Card] ---
+# --- [UI Style Helper: Metrics] ---
 def render_metric_card(label, value, color="#6366f1"):
     st.markdown(f"""
-    <div class="metric-card" style="text-align: center;">
-        <div style="color: #64748b; font-size: 12px; font-weight: 500; margin-bottom: 4px;">{label}</div>
-        <div style="color: #1e293b; font-size: 22px; font-weight: 700;">{value}</div>
+    <div class="metric-card" style="text-align: center; border-left: 4px solid {color}; padding-left: 10px;">
+        <div style="color: #64748b; font-size: 11px; font-weight: 600; text-transform: uppercase;">{label}</div>
+        <div style="color: #1e293b; font-size: 20px; font-weight: 800;">{value}</div>
     </div>
     """, unsafe_allow_html=True)
 
-# --- [Page Header: Boxed Banner] ---
+# --- [Page Header: Original] ---
 st.markdown(f"""
 <div class="page-header" style="padding: 12px 24px; margin-bottom: 16px;">
     <div style="font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px; opacity: 0.8;">Overview</div>
@@ -23,6 +24,7 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 
 # --- 1. 데이터 가져오기 ---
+df_u = st.session_state.get('df_users', pd.DataFrame())
 df_login = st.session_state.get('df_login', pd.DataFrame())
 df_download = st.session_state.get('df_download', pd.DataFrame())
 df_proposal = st.session_state.get('df_proposal', pd.DataFrame())
@@ -34,7 +36,7 @@ sel_dept = st.session_state.get('sel_dept', [])
 sel_rank = st.session_state.get('sel_rank', [])
 warning_threshold = st.session_state.get('warning_threshold', 10)
 
-# --- 3. 필터링 함수 ---
+# --- 3. 데이터 필터링 함수 ---
 def filter_data(df):
     if df.empty: return df
     res = df.copy()
@@ -49,6 +51,9 @@ def filter_data(df):
                 res = res[(res['date'].dt.date >= date_range[0]) & (res['date'].dt.date <= date_range[1])]
     if sel_dept and '부서' in res.columns:
         res = res[res['부서'].isin(sel_dept)]
+    elif sel_dept and '_ui_dept' in res.columns: # df_users용
+        res = res[res['_ui_dept'].isin(sel_dept)]
+    
     if sel_rank and '직급그룹' in res.columns:
         res = res[res['직급그룹'].isin(sel_rank)]
     return res
@@ -56,117 +61,133 @@ def filter_data(df):
 f_login = filter_data(df_login)
 f_download = filter_data(df_download)
 f_proposal = filter_data(df_proposal)
+f_u = filter_data(df_u)
 
-# --- 4. 프리미엄 KPI 섹션 (박스형 카드) ---
-st.markdown("### Key Performance Indicators")
-c1, c2, c3, c4, c5 = st.columns(5)
+# [수치 정합성] 부서/직급 정보가 없는 데이터를 '정보미등록'으로 채움
+for df in [f_login, f_download, f_proposal, f_u]:
+    if not df.empty:
+        if '부서' in df.columns: df['부서'] = df['부서'].fillna('정보미등록').replace('', '정보미등록')
+        if '직급그룹' in df.columns: df['직급그룹'] = df['직급그룹'].fillna('정보미등록').replace('', '정보미등록')
+        if '_ui_dept' in df.columns: df['_ui_dept'] = df['_ui_dept'].fillna('정보미등록').replace('', '정보미등록')
 
 def get_menu_count(df, pattern):
     if df.empty or '경로 메뉴명' not in df.columns: return 0
     return len(df[df['경로 메뉴명'].astype(str).str.contains(pattern, na=False)])
 
-with c1: render_metric_card("총 로그인", f"{len(f_login):,}건", "#6366f1")
-with c2: render_metric_card("제안서 DL", f"{len(f_proposal):,}건", "#f59e0b")
-with c3: render_metric_card("프로젝트 찾기", f"{get_menu_count(f_download, '프로젝트'):,}건", "#10b981")
-with c4: render_metric_card("운영자료 찾기", f"{get_menu_count(f_download, '운영자료'):,}건", "#3b82f6")
-with c5: render_metric_card("서포트 센터", f"{get_menu_count(f_download, '서포트'):,}건", "#ec4899")
+# --- 4. 상단 KPI 섹션 ---
+kpi_cols = st.columns(5)
+with kpi_cols[0]: render_metric_card("총 로그인", f"{len(f_login):,}건", "#6366f1")
+with kpi_cols[1]: render_metric_card("제안서 DL", f"{len(f_proposal):,}건", "#f59e0b")
+with kpi_cols[2]: render_metric_card("프로젝트 찾기", f"{get_menu_count(f_download, '프로젝트'):,}건", "#10b981")
+with kpi_cols[3]: render_metric_card("운영자료 찾기", f"{get_menu_count(f_download, '운영자료'):,}건", "#3b82f6")
+with kpi_cols[4]: render_metric_card("서포트 센터", f"{get_menu_count(f_download, '서포트'):,}건", "#ec4899")
 
-st.markdown("<br>", unsafe_allow_html=True)
+st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
 
-# --- 5. 차트 섹션 (모던 카드 스타일) ---
-col_chart1, col_chart2 = st.columns(2)
+# --- 5. 중단 1행 (추이 및 경고) ---
+col_mid_left, col_mid_right = st.columns([2, 1])
 
-with col_chart1:
-    st.markdown("""
-    <div style="padding: 10px; border: 1px solid #e2e8f0; border-radius: 8px; margin-bottom: 10px;">
-        <h3 style="margin: 0; padding: 0;">일자별 활동 현황</h3>
-    </div>
-    """, unsafe_allow_html=True)
+with col_mid_left:
+    st.markdown("##### 📈 일자별 활동 현황 (로그인 vs 다운로드)")
     if not f_login.empty and 'date' in f_login.columns:
-        daily_logs = f_login.groupby(f_login['date'].dt.date).size().reset_index(name='방문건수')
-        daily_logs.columns = ['날짜', '방문건수']
-        fig = px.line(daily_logs, x='날짜', y='방문건수', markers=True, color_discrete_sequence=['#6366f1'])
-        fig.update_layout(height=300, margin=dict(l=20, r=20, t=10, b=20), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
-        st.plotly_chart(fig, use_container_width=True)
-    else:
-        st.info("데이터가 없습니다.")
-
-with col_chart2:
-    st.markdown("""
-    <div style="padding: 10px; border: 1px solid #e2e8f0; border-radius: 8px; margin-bottom: 10px;">
-        <h3 style="margin: 0; padding: 0;">부서별 사용 비중</h3>
-    </div>
-    """, unsafe_allow_html=True)
-    if not f_login.empty and '부서' in f_login.columns:
-        dept_stats = f_login['부서'].value_counts().reset_index()
-        dept_stats.columns = ['부서명', '활동건수']
-        fig = px.pie(dept_stats, values='활동건수', names='부서명', hole=0.5, color_discrete_sequence=px.colors.qualitative.Pastel)
-        fig.update_layout(height=300, margin=dict(l=20, r=20, t=10, b=20), paper_bgcolor='rgba(0,0,0,0)')
-        st.plotly_chart(fig, use_container_width=True)
-    else:
-        st.info("데이터가 없습니다.")
-
-# --- 6. 상세 테이블 섹션 ---
-st.markdown("---")
-st.markdown("###  직원별 활동 상세 내역")
-
-candidate_cols = ['UserNo', '이름', '부서', '직급', config.COL_NAME_EMAIL]
-user_stats = pd.DataFrame()
-
-# 로그인 합산
-if not f_login.empty:
-    l_grp = [c for c in candidate_cols if c in f_login.columns]
-    if l_grp: user_stats = f_login.groupby(l_grp).size().reset_index(name='로그인수')
-
-# 제안서 DL 합산
-if not f_proposal.empty:
-    p_grp = [c for c in candidate_cols if c in f_proposal.columns]
-    if p_grp:
-        p_stats = f_proposal.groupby(p_grp).size().reset_index(name='제안서 DL')
-        if user_stats.empty:
-            user_stats = p_stats
-            user_stats['로그인수'] = 0
-        else:
-            common = list(set(user_stats.columns).intersection(set(p_grp)))
-            user_stats = pd.merge(user_stats, p_stats, on=common, how='outer')
-
-# 메뉴별 합산
-def get_user_menu_stats(df, pattern, name):
-    if df.empty or '경로 메뉴명' not in df.columns: return pd.DataFrame()
-    sub_df = df[df['경로 메뉴명'].astype(str).str.contains(pattern, na=False)]
-    if sub_df.empty: return pd.DataFrame()
-    m_grp = [c for c in candidate_cols if c in sub_df.columns]
-    return sub_df.groupby(m_grp).size().reset_index(name=name)
-
-for p, n in [("프로젝트", "프로젝트"), ("운영자료", "운영자료"), ("서포트", "서포트센터")]:
-    m_df = get_user_menu_stats(f_download, p, n)
-    if not m_df.empty:
-        if user_stats.empty:
-            user_stats = m_df
-        else:
-            common = list(set(user_stats.columns).intersection(set(m_df.columns)))
-            user_stats = pd.merge(user_stats, m_df, on=common, how='left')
-
-if not user_stats.empty:
-    cols_to_fill = ['로그인수', '제안서 DL', '프로젝트', '운영자료', '서포트센터']
-    for c in cols_to_fill:
-        if c not in user_stats.columns: user_stats[c] = 0
-        user_stats[c] = user_stats[c].fillna(0).astype(int)
-    
-    # user_stats['합계'] = user_stats[cols_to_fill].sum(axis=1)
-    user_stats = user_stats.sort_values(by=cols_to_fill[0], ascending=False)
-    
-    # 테이블 스타일링 (제안서 DL 10회 이상 배경 붉은색)
-    def highlight_dl(val):
-        if isinstance(val, (int, float)) and val >= 10:
-            return 'background-color: #fee2e2; color: #000000;'
-        return ''
-    
-    try:
-        styled_df = user_stats.style.map(highlight_dl, subset=['제안서 DL'])
-    except AttributeError:
-        styled_df = user_stats.style.applymap(highlight_dl, subset=['제안서 DL'])
+        daily_login = f_login.groupby(f_login['date'].dt.date).size().reset_index(name='로그인수')
+        dl_p = f_proposal.groupby(f_proposal['date'].dt.date).size().reset_index(name='제안서')
+        dl_d = f_download[f_download['경로 메뉴명'].astype(str).str.contains('프로젝트|운영자료|서포트', na=False)]
+        dl_d = dl_d.groupby(dl_d['date'].dt.date).size().reset_index(name='사용로그')
+        merged_dl = pd.merge(dl_p, dl_d, on='date', how='outer').fillna(0)
+        merged_dl['다운로드합계'] = merged_dl['제안서'] + merged_dl['사용로그']
+        all_trends = pd.merge(daily_login, merged_dl[['date', '다운로드합계']], on='date', how='outer').fillna(0).sort_values('date')
         
-    st.dataframe(styled_df, use_container_width=True, hide_index=True)
-else:
-    st.info("데이터가 없습니다.")
+        fig = go.Figure()
+        fig.add_trace(go.Scatter(x=all_trends['date'], y=all_trends['로그인수'], name='로그인수', line=dict(color='#6366f1', width=3)))
+        fig.add_trace(go.Scatter(x=all_trends['date'], y=all_trends['다운로드합계'], name='다운로드합계', line=dict(color='#10b981', width=3), yaxis='y2'))
+        fig.update_layout(
+            height=220, margin=dict(l=40, r=40, t=10, b=40),
+            paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1, font=dict(size=10)),
+            yaxis=dict(title=dict(text="로그인 수", font=dict(size=10, color="#6366f1")), tickfont=dict(size=10, color="#6366f1")),
+            yaxis2=dict(title=dict(text="다운로드 수", font=dict(size=10, color="#10b981")), tickfont=dict(size=10, color="#10b981"), anchor="x", overlaying="y", side="right")
+        )
+        st.plotly_chart(fig, use_container_width=True)
+    else: st.info("데이터 없음")
+
+with col_mid_right:
+    st.markdown("##### ⚠️ 제안서 다운로드 경고 직원")
+    if not f_proposal.empty:
+        agg_cols = ['UserNo', '이름', '부서', '직급']
+        heavy_users = f_proposal.groupby(agg_cols).size().reset_index(name='횟수')
+        heavy_users = heavy_users[heavy_users['횟수'] >= warning_threshold].sort_values(by='횟수', ascending=False)
+        if not heavy_users.empty:
+            st.dataframe(heavy_users, use_container_width=True, hide_index=True, height=180)
+        else: st.success("경고 대상 없음")
+    else: st.info("데이터 없음")
+
+# --- 6. 하단 2행 (부서/직급별 사용량 및 사용률 분석) ---
+st.markdown("<div style='height: 5px;'></div>", unsafe_allow_html=True)
+c1, c2, c3, c4 = st.columns(4)
+
+# 컬러 맵 생성 (일관성 유지)
+def get_color_map(labels):
+    palette = px.colors.qualitative.Pastel + px.colors.qualitative.Set3
+    return {label: palette[i % len(palette)] for i, label in enumerate(sorted(labels))}
+
+# 데이터 준비
+total_users_dept = df_u.groupby('_ui_dept')['UserNo'].nunique().reset_index(name='전체인원')
+total_users_rank = df_u.groupby('직급그룹')['UserNo'].nunique().reset_index(name='전체인원')
+active_p = f_proposal[['UserNo', '부서', '직급그룹']]
+active_d = f_download[f_download['경로 메뉴명'].astype(str).str.contains('프로젝트|운영자료|서포트', na=False)][['UserNo', '부서', '직급그룹']]
+active_users_all = pd.concat([active_p, active_d]).drop_duplicates(subset=['UserNo'])
+active_by_dept = active_users_all.groupby('부서')['UserNo'].nunique().reset_index(name='순사용자')
+active_by_rank = active_users_all.groupby('직급그룹')['UserNo'].nunique().reset_index(name='순사용자')
+
+# 부서/직급별 컬러맵
+dept_color_map = get_color_map(total_users_dept['_ui_dept'].unique())
+rank_color_map = get_color_map(total_users_rank['직급그룹'].unique())
+
+with c1:
+    st.markdown("##### 부서별 활동 (로그인)")
+    if not f_login.empty:
+        login_dept = f_login.groupby('부서').size().reset_index(name='건수')
+        total_login = login_dept['건수'].sum()
+        fig = px.pie(login_dept, values='건수', names='부서', hole=0.6, color='부서', color_discrete_map=dept_color_map)
+        fig.update_traces(textinfo='none', hovertemplate='%{label}<br>%{value}건 (%{percent})')
+        fig.update_layout(showlegend=True, height=180, margin=dict(l=10, r=10, t=10, b=10),
+            legend=dict(orientation="v", yanchor="middle", y=0.5, xanchor="left", x=-0.5, font=dict(size=9)),
+            annotations=[dict(text=f'{int(total_login):,}', x=0.5, y=0.5, font_size=14, showarrow=False, font_weight='bold')])
+        st.plotly_chart(fig, use_container_width=True)
+
+with c2:
+    st.markdown("##### 부서별 사용률 (%)")
+    usage_dept = pd.merge(total_users_dept, active_by_dept, left_on='_ui_dept', right_on='부서', how='left').fillna(0)
+    if not usage_dept.empty:
+        usage_dept['사용률'] = (usage_dept['순사용자'] / usage_dept['전체인원'] * 100).round(1)
+        total_rate = (usage_dept['순사용자'].sum() / usage_dept['전체인원'].sum() * 100) if usage_dept['전체인원'].sum() > 0 else 0
+        fig = px.pie(usage_dept, values='순사용자', names='_ui_dept', hole=0.6, color='_ui_dept', color_discrete_map=dept_color_map, custom_data=['사용률'])
+        fig.update_traces(textinfo='none', hovertemplate='%{label}<br>사용률: %{customdata[0]}%')
+        fig.update_layout(showlegend=False, height=180, margin=dict(l=10, r=10, t=10, b=10),
+            annotations=[dict(text=f'{total_rate:.1f}%', x=0.5, y=0.5, font_size=18, showarrow=False, font_weight='bold')])
+        st.plotly_chart(fig, use_container_width=True)
+
+with c3:
+    st.markdown("##### 직급별 활동 (로그인)")
+    if not f_login.empty:
+        login_rank = f_login.groupby('직급그룹').size().reset_index(name='건수')
+        total_login_r = login_rank['건수'].sum()
+        fig = px.pie(login_rank, values='건수', names='직급그룹', hole=0.6, color='직급그룹', color_discrete_map=rank_color_map)
+        fig.update_traces(textinfo='none', hovertemplate='%{label}<br>%{value}건 (%{percent})')
+        fig.update_layout(showlegend=True, height=180, margin=dict(l=10, r=10, t=10, b=10),
+            legend=dict(orientation="v", yanchor="middle", y=0.5, xanchor="left", x=-0.5, font=dict(size=9)),
+            annotations=[dict(text=f'{int(total_login_r):,}', x=0.5, y=0.5, font_size=14, showarrow=False, font_weight='bold')])
+        st.plotly_chart(fig, use_container_width=True)
+
+with c4:
+    st.markdown("##### 직급별 사용률 (%)")
+    usage_rank = pd.merge(total_users_rank, active_by_rank, on='직급그룹', how='left').fillna(0)
+    if not usage_rank.empty:
+        usage_rank['사용률'] = (usage_rank['순사용자'] / usage_rank['전체인원'] * 100).round(1)
+        total_rate_r = (usage_rank['순사용자'].sum() / usage_rank['전체인원'].sum() * 100) if usage_rank['전체인원'].sum() > 0 else 0
+        fig = px.pie(usage_rank, values='순사용자', names='직급그룹', hole=0.6, color='직급그룹', color_discrete_map=rank_color_map, custom_data=['사용률'])
+        fig.update_traces(textinfo='none', hovertemplate='%{label}<br>사용률: %{customdata[0]}%')
+        fig.update_layout(showlegend=False, height=180, margin=dict(l=10, r=10, t=10, b=10),
+            annotations=[dict(text=f'{total_rate_r:.1f}%', x=0.5, y=0.5, font_size=18, showarrow=False, font_weight='bold')])
+        st.plotly_chart(fig, use_container_width=True)
