@@ -274,8 +274,8 @@ def add_rank_group(df):
     def group_rank(rank):
         if pd.isna(rank): return '기타'
         rank_str = str(rank).strip()
-        if rank_str in ['사원', '대리', '주임', '연구원']: return '실무자(사원/대리)'
-        if rank_str in ['차장', '팀장', '부장', '본부장', '이사', '실장', '수석', '상무', '전무']: return '관리자(차장↑)'
+        if rank_str in ['사원', '대리']: return '실무자(사원/대리)'
+        if rank_str in ['차장', '팀장', '부장', '본부장']: return '관리자(차장↑)'
         if rank_str in ['임원']: return '임원'
         return '기타'
     df['직급그룹'] = df['직급'].apply(group_rank)
