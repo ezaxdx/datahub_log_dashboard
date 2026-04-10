@@ -13,6 +13,12 @@ YEAR_COL_HQ   = "{year}_본부/실"
 YEAR_COL_RANK = "{year}_통계 직급"
 YEAR_COL_DIVISION = "{year}_사업부"
 
+# 부서별 현황 페이지 전용: 본부명으로 그대로 보여줄 부서 목록
+DEPT_SHOW_AS_HQ = ["CP실", "주최사업실"]
+
+# 직급 정렬 순서 (사원 -> 임원)
+RANK_ORDER = ['사원', '대리', '과장', '차장', '팀장', '부장', '본부장', '임원']
+
 # 표준 이메일(ID) 컬럼명 (사용자 요청: PRS ID로 통일)
 COL_NAME_EMAIL = "PRS ID"
 
