@@ -18,8 +18,8 @@ def render_metric_card(label, value, color="#6366f1"):
 st.markdown(f"""
 <div class="page-header" style="padding: 12px 24px; margin-bottom: 16px;">
     <div style="font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px; opacity: 0.8;">Analysis</div>
-    <div style="font-size: 24px; font-weight: 800; margin-bottom: 4px;"> {config.CURRENT_YEAR} 부서 및 직급별 현황</div>
-    <div style="font-size: 13px; opacity: 0.85; font-weight: 400;">부서와 직급별 활동량을 비교 분석하고 인원 대비 활용도를 확인합니다.</div>
+    <div style="font-size: 24px; font-weight: 800; margin-bottom: 4px;"> {config.CURRENT_YEAR} EZ데이터허브 부서 및 직급별 현황 대시보드</div>
+    <div style="font-size: 13px; opacity: 0.85; font-weight: 400;"> 사용자의 활동 내역을 부서와 직급별로 모니터링하고 인원 대비 활용도를 확인합니다.</div>
 </div>
 """, unsafe_allow_html=True)
 
@@ -170,8 +170,6 @@ st.plotly_chart(fig_dept, use_container_width=True)
 
 st.markdown("<hr style='margin: 8px 0; border: none; border-top: 1px solid #eee;'>", unsafe_allow_html=True)
 
-# --- 6. 섹션 2: 직급별 현황 및 비중 ---
-st.markdown("<p style='font-size: 14px; font-weight: 700; margin-bottom: 5px;'>🎓 직급별 분석</p>", unsafe_allow_html=True)
 
 # 직급 정렬 기준 필터링 (데이터 가공 로직 복구)
 rank_order_no_exec = [r for r in config.RANK_ORDER if r != '임원']
@@ -261,7 +259,7 @@ with col_rank_sub:
 st.markdown("<hr style='margin: 8px 0; border: none; border-top: 1px solid #eee;'>", unsafe_allow_html=True)
 
 # --- 7. 섹션 3: 인원표 ---
-st.markdown("<p style='font-size: 14px; font-weight: 700; margin-bottom: 5px;'>👥 부서/직급별 인원 현황</p>", unsafe_allow_html=True)
+st.markdown("##### 👥 부서/직급별 인원 현황")
 # df_u 기준 (전체 임직원 마스터)
 # 부서_그룹 vs 직급
 xtab = pd.crosstab(df_u['부서_그룹'], df_u['직급'])

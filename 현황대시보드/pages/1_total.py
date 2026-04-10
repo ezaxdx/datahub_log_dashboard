@@ -19,7 +19,7 @@ st.markdown(f"""
 <div class="page-header" style="padding: 12px 24px; margin-bottom: 16px;">
     <div style="font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px; opacity: 0.8;">Overview</div>
     <div style="font-size: 24px; font-weight: 800; margin-bottom: 4px;"> {config.CURRENT_YEAR} EZ데이터허브 로그 분석 대시보드</div>
-    <div style="font-size: 13px; opacity: 0.85; font-weight: 400;">데이터허브 사용자의 전반적인 사용량 및 활동 현황을 모니터링합니다. </div>
+    <div style="font-size: 13px; opacity: 0.85; font-weight: 400;"> 사용자의 전반적인 사용량 및 활동 현황을 모니터링합니다. </div>
 </div>
 """, unsafe_allow_html=True)
 
@@ -51,8 +51,8 @@ def filter_data(df):
                 res = res[(res['date'].dt.date >= date_range[0]) & (res['date'].dt.date <= date_range[1])]
     if sel_dept and '부서' in res.columns:
         res = res[res['부서'].isin(sel_dept)]
-    elif sel_dept and '_ui_dept' in res.columns: # df_users용
-        res = res[res['_ui_dept'].isin(sel_dept)]
+    elif sel_dept and '부서' in res.columns: # df_users용
+        res = res[res['부서'].isin(sel_dept)]
     
     if sel_rank and '직급그룹' in res.columns:
         res = res[res['직급그룹'].isin(sel_rank)]
@@ -71,8 +71,8 @@ for df in [f_login, f_download, f_proposal, f_u]:
             df['부서'] = df['부서'].replace(['', None, 'nan', 'NaN'], '정보미등록').fillna('정보미등록')
         if '직급그룹' in df.columns: 
             df['직급그룹'] = df['직급그룹'].replace(['', None, 'nan', 'NaN'], '정보미등록').fillna('정보미등록')
-        if '_ui_dept' in df.columns: 
-            df['_ui_dept'] = df['_ui_dept'].replace(['', None, 'nan', 'NaN'], '정보미등록').fillna('정보미등록')
+        if '부서' in df.columns: 
+            df['부서'] = df['부서'].replace(['', None, 'nan', 'NaN'], '정보미등록').fillna('정보미등록')
 
 def get_menu_count(df, pattern):
     if df.empty or '경로 메뉴명' not in df.columns: return 0
@@ -136,7 +136,7 @@ def get_color_map(labels):
     return {label: palette[i % len(palette)] for i, label in enumerate(sorted(labels))}
 
 # 데이터 준비
-total_users_dept = df_u.groupby('_ui_dept')['UserNo'].nunique().reset_index(name='전체인원')
+total_users_dept = df_u.groupby('부서')['UserNo'].nunique().reset_index(name='전체인원')
 total_users_rank = df_u.groupby('직급그룹')['UserNo'].nunique().reset_index(name='전체인원')
 active_p = f_proposal[['UserNo', '부서', '직급그룹']]
 active_d = f_download[f_download['경로 메뉴명'].astype(str).str.contains('프로젝트|운영자료|서포트', na=False)][['UserNo', '부서', '직급그룹']]
@@ -145,7 +145,7 @@ active_by_dept = active_users_all.groupby('부서')['UserNo'].nunique().reset_in
 active_by_rank = active_users_all.groupby('직급그룹')['UserNo'].nunique().reset_index(name='순사용자')
 
 # 부서/직급별 컬러맵
-dept_color_map = get_color_map(total_users_dept['_ui_dept'].unique())
+dept_color_map = get_color_map(total_users_dept['부서'].unique())
 rank_color_map = get_color_map(total_users_rank['직급그룹'].unique())
 
 with c1:
@@ -161,12 +161,12 @@ with c1:
 
 with c2:
     st.markdown("##### 부서별 사용률 (%)")
-    usage_dept = pd.merge(total_users_dept, active_by_dept, left_on='_ui_dept', right_on='부서', how='left').fillna(0)
+    usage_dept = pd.merge(total_users_dept, active_by_dept, on='부서', how='left').fillna(0)
     if not usage_dept.empty:
-        usage_dept['사용률'] = (usage_dept['순사용자'] / usage_dept['전체인원'] * 100).round(1)
+        usage_dept['사용률'] = (usage_dept['순사용자'] / usage_dept['전체인원'] * 100).fillna(0).round(1)
         total_rate = (usage_dept['순사용자'].sum() / usage_dept['전체인원'].sum() * 100) if usage_dept['전체인원'].sum() > 0 else 0
-        fig = px.pie(usage_dept, values='순사용자', names='_ui_dept', hole=0.6, color='_ui_dept', color_discrete_map=dept_color_map, custom_data=usage_dept[['사용률']].values)
-        fig.update_traces(textinfo='none', hovertemplate='%{label}<br>사용률: %{customdata[0]:.1f}%<extra></extra>')
+        fig = px.pie(usage_dept, values='순사용자', names='부서', hole=0.6, color='부서', color_discrete_map=dept_color_map)
+        fig.update_traces(textinfo='none', customdata=usage_dept[['사용률']].values, hovertemplate='%{label}<br>사용률: %{customdata[0]:.1f}%<extra></extra>')
         fig.update_layout(showlegend=False, height=180, margin=dict(l=10, r=10, t=10, b=20))
         st.plotly_chart(fig, use_container_width=True)
 
@@ -185,13 +185,9 @@ with c4:
     st.markdown("##### 직급별 사용률 (%)")
     usage_rank = pd.merge(total_users_rank, active_by_rank, on='직급그룹', how='left').fillna(0)
     if not usage_rank.empty:
-        usage_rank['사용률'] = (usage_rank['순사용자'] / usage_rank['전체인원'] * 100).round(1)
+        usage_rank['사용률'] = (usage_rank['순사용자'] / usage_rank['전체인원'] * 100).fillna(0).round(1)
         total_rate_r = (usage_rank['순사용자'].sum() / usage_rank['전체인원'].sum() * 100) if usage_rank['전체인원'].sum() > 0 else 0
-        fig = px.pie(usage_rank, values='사용률', names='직급그룹', hole=0.6, color='직급그룹', color_discrete_map=rank_color_map)
-        fig.update_traces(
-            textinfo='none',
-            customdata=usage_rank[['순사용자']].values,
-            hovertemplate='%{label}<br>사용률: %{value:.1f}%<br>인원: %{customdata[0]:.0f}명<extra></extra>'
-        )
+        fig = px.pie(usage_rank, values='순사용자', names='직급그룹', hole=0.6, color='직급그룹', color_discrete_map=rank_color_map)
+        fig.update_traces(textinfo='none', customdata=usage_rank[['사용률']].values, hovertemplate='%{label}<br>사용률: %{customdata[0]:.1f}%<extra></extra>')
         fig.update_layout(showlegend=False, height=180, margin=dict(l=10, r=10, t=10, b=20))
         st.plotly_chart(fig, use_container_width=True)

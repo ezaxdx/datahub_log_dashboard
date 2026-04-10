@@ -19,8 +19,8 @@ def render_metric_card(label, value, color="#6366f1"):
 st.markdown(f"""
 <div class="page-header" style="padding: 12px 24px; margin-bottom: 16px;">
     <div style="font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px; opacity: 0.8;">Analysis</div>
-    <div style="font-size: 24px; font-weight: 800; margin-bottom: 4px;"> {config.CURRENT_YEAR}년 EZ데이터허브 사용자 대시보드</div>
-    <div style="font-size: 13px; opacity: 0.85; font-weight: 400;">{config.CURRENT_YEAR}년 EZ데이터허브 사용자의 파일 다운로드 현황을 확인할 수 있습니다.</div>
+    <div style="font-size: 24px; font-weight: 800; margin-bottom: 4px;"> {config.CURRENT_YEAR}년 EZ데이터허브 파일 다운로드 현황 대시보드</div>
+    <div style="font-size: 13px; opacity: 0.85; font-weight: 400;"> 사용자의 활동 내역 및 파일 다운로드 현황을 확인할 수 있습니다.</div>
 </div>
 """, unsafe_allow_html=True)
 
@@ -52,8 +52,8 @@ def filter_data(df):
                 res = res[(res['date'].dt.date >= date_range[0]) & (res['date'].dt.date <= date_range[1])]
     if sel_dept and '부서' in res.columns:
         res = res[res['부서'].isin(sel_dept)]
-    elif sel_dept and '_ui_dept' in res.columns: # df_users용
-        res = res[res['_ui_dept'].isin(sel_dept)]
+    elif sel_dept and '부서' in res.columns: # df_users용
+        res = res[res['부서'].isin(sel_dept)]
     
     if sel_rank and '직급그룹' in res.columns:
         res = res[res['직급그룹'].isin(sel_rank)]
@@ -75,7 +75,7 @@ for df in [f_login, f_download, f_proposal, f_u]:
         if '직급그룹' in df.columns: 
             df['직급그룹'] = df['직급그룹'].replace(['', None, 'nan', 'NaN'], '정보미등록').fillna('정보미등록')
 
-# --- 4. 섹션 1: 직원별 활동 상세내역 & 고유파일 열람 현황 ---
+# --- 4. 섹션 1: 직원별 활동 상세내역 & 제안서 다운로드 현황 ---
 col_s1_left, col_s1_right = st.columns([3, 1])
 
 # 고정 유저 데이터 (f_u 기준)
@@ -125,14 +125,14 @@ with col_s1_right:
     st.markdown("<div style='text-align: right; font-size: 11px; color: #64748b; margin-top: -25px;'>모니터링 기준 설정</div>", unsafe_allow_html=True)
     # 워닝 횟수 필터를 드롭다운(selectbox)으로 변경
     warning_threshold = st.selectbox(
-        "제안서 워닝 횟수 설정", 
+        "제안서 경고 횟수 설정", 
         options=[5, 10, 15, 20, 30, 50, 100], 
         index=1,
         key='user_page_threshold_v2'
     )
     st.session_state['warning_threshold'] = warning_threshold
 
-    st.markdown("##### 🚨 고유파일 열람 현황")
+    st.markdown("##### 🚨 제안서 다운로드 현황")
     
     heavy_users = df_user_activity[df_user_activity['제안서다운로드'] >= warning_threshold].copy()
     st.markdown(f"<div style='font-size: 12px; margin-bottom: 8px;'>현재 필터 조건에서 총 <b style='color: #ef4444;'>{len(heavy_users)}</b>명의 사용자가 기준치({warning_threshold}건)를 초과했습니다.</div>", unsafe_allow_html=True)
@@ -193,7 +193,7 @@ c1, c2, c3, c4 = st.columns(4)
 table_height = 280  # 높이 동일하게 조절
 
 with c1:
-    st.markdown("###### 📂 제안서 top10")
+    st.markdown("###### 📂 제안서 Top10")
     if not f_proposal.empty:
         def parse_project(path):
             match = re.search(r'/(\d{6})\[([^\]]+)\]', str(path))
@@ -209,7 +209,7 @@ with c1:
     else: st.info("데이터 없음")
 
 with c2:
-    st.markdown("###### 🔎 프로젝트 찾기 top10")
+    st.markdown("###### 🔎 프로젝트 찾기 Top10")
     proj_logs = f_download[f_download['경로 메뉴명'].astype(str).str.contains('프로젝트 찾기', na=False)]
     if not proj_logs.empty:
         if '파일명' not in proj_logs.columns:
@@ -222,7 +222,7 @@ with c2:
     else: st.info("데이터 없음")
 
 with c3:
-    st.markdown("###### 🛠️ 운영자료 찾기 top10")
+    st.markdown("###### 🛠️ 운영자료 찾기 Top10")
     ops_logs = f_download[f_download['경로 메뉴명'].astype(str).str.contains('운영자료 찾기', na=False)]
     if not ops_logs.empty:
         if '파일명' not in ops_logs.columns:
@@ -235,7 +235,7 @@ with c3:
     else: st.info("데이터 없음")
 
 with c4:
-    st.markdown("###### ☎️ 서포트 센터 top10")
+    st.markdown("###### ☎️ 서포트 센터 Top10")
     supp_logs = f_download[f_download['경로 메뉴명'].astype(str).str.contains('서포트 센터', na=False)]
     if not supp_logs.empty:
         if '파일명' not in supp_logs.columns:
