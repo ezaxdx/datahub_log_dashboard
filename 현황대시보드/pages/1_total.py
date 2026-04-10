@@ -18,8 +18,8 @@ def render_metric_card(label, value, color="#6366f1"):
 st.markdown(f"""
 <div class="page-header" style="padding: 12px 24px; margin-bottom: 16px;">
     <div style="font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px; opacity: 0.8;">Overview</div>
-    <div style="font-size: 24px; font-weight: 800; margin-bottom: 4px;"> {config.CURRENT_YEAR} 통합 로그 분석 대시보드</div>
-    <div style="font-size: 13px; opacity: 0.85; font-weight: 400;">데이터허브 시스템의 전반적인 사용량 및 활동 지표를 모니터링합니다.</div>
+    <div style="font-size: 24px; font-weight: 800; margin-bottom: 4px;"> {config.CURRENT_YEAR} EZ데이터허브 로그 분석 대시보드</div>
+    <div style="font-size: 13px; opacity: 0.85; font-weight: 400;">데이터허브 사용자의 전반적인 사용량 및 활동 현황을 모니터링합니다. </div>
 </div>
 """, unsafe_allow_html=True)
 
@@ -92,7 +92,7 @@ st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
 col_mid_left, col_mid_right = st.columns([2, 1])
 
 with col_mid_left:
-    st.markdown("##### 📈 일자별 활동 현황 (로그인 vs 다운로드)")
+    st.markdown("##### 📈 일자별 활동 현황")
     if not f_login.empty and 'date' in f_login.columns:
         daily_login = f_login.groupby(f_login['date'].dt.date).size().reset_index(name='로그인수')
         dl_p = f_proposal.groupby(f_proposal['date'].dt.date).size().reset_index(name='제안서')
@@ -154,10 +154,9 @@ with c1:
         login_dept = f_login.groupby('부서').size().reset_index(name='건수')
         total_login = login_dept['건수'].sum()
         fig = px.pie(login_dept, values='건수', names='부서', hole=0.6, color='부서', color_discrete_map=dept_color_map)
-        fig.update_traces(textinfo='none', hovertemplate='%{label}<br>%{value}건 (%{percent})')
-        fig.update_layout(showlegend=True, height=180, margin=dict(l=10, r=10, t=10, b=10),
-            legend=dict(orientation="v", yanchor="middle", y=0.5, xanchor="left", x=-0.5, font=dict(size=9)),
-            annotations=[dict(text=f'{int(total_login):,}', x=0.5, y=0.5, font_size=14, showarrow=False, font_weight='bold')])
+        fig.update_traces(textinfo='none', hovertemplate='%{label}<br>활동량: %{value}건')
+        fig.update_layout(showlegend=True, height=180, margin=dict(l=10, r=10, t=10, b=20),
+            legend=dict(orientation="v", yanchor="middle", y=0.5, xanchor="left", x=-0.5, font=dict(size=9)))
         st.plotly_chart(fig, use_container_width=True)
 
 with c2:
@@ -166,10 +165,9 @@ with c2:
     if not usage_dept.empty:
         usage_dept['사용률'] = (usage_dept['순사용자'] / usage_dept['전체인원'] * 100).round(1)
         total_rate = (usage_dept['순사용자'].sum() / usage_dept['전체인원'].sum() * 100) if usage_dept['전체인원'].sum() > 0 else 0
-        fig = px.pie(usage_dept, values='순사용자', names='_ui_dept', hole=0.6, color='_ui_dept', color_discrete_map=dept_color_map, custom_data=['사용률'])
-        fig.update_traces(textinfo='none', hovertemplate='%{label}<br>사용률: %{customdata[0]}%')
-        fig.update_layout(showlegend=False, height=180, margin=dict(l=10, r=10, t=10, b=10),
-            annotations=[dict(text=f'{total_rate:.1f}%', x=0.5, y=0.5, font_size=18, showarrow=False, font_weight='bold')])
+        fig = px.pie(usage_dept, values='순사용자', names='_ui_dept', hole=0.6, color='_ui_dept', color_discrete_map=dept_color_map, custom_data=usage_dept[['사용률']].values)
+        fig.update_traces(textinfo='none', hovertemplate='%{label}<br>사용률: %{customdata[0]:.1f}%<extra></extra>')
+        fig.update_layout(showlegend=False, height=180, margin=dict(l=10, r=10, t=10, b=20))
         st.plotly_chart(fig, use_container_width=True)
 
 with c3:
@@ -178,10 +176,9 @@ with c3:
         login_rank = f_login.groupby('직급그룹').size().reset_index(name='건수')
         total_login_r = login_rank['건수'].sum()
         fig = px.pie(login_rank, values='건수', names='직급그룹', hole=0.6, color='직급그룹', color_discrete_map=rank_color_map)
-        fig.update_traces(textinfo='none', hovertemplate='%{label}<br>%{value}건 (%{percent})')
-        fig.update_layout(showlegend=True, height=180, margin=dict(l=10, r=10, t=10, b=10),
-            legend=dict(orientation="v", yanchor="middle", y=0.5, xanchor="left", x=-0.5, font=dict(size=9)),
-            annotations=[dict(text=f'{int(total_login_r):,}', x=0.5, y=0.5, font_size=14, showarrow=False, font_weight='bold')])
+        fig.update_traces(textinfo='none', hovertemplate='%{label}<br>활동량: %{value}건')
+        fig.update_layout(showlegend=True, height=180, margin=dict(l=10, r=10, t=10, b=20),
+            legend=dict(orientation="v", yanchor="middle", y=0.5, xanchor="left", x=-0.5, font=dict(size=9)))
         st.plotly_chart(fig, use_container_width=True)
 
 with c4:
@@ -190,8 +187,11 @@ with c4:
     if not usage_rank.empty:
         usage_rank['사용률'] = (usage_rank['순사용자'] / usage_rank['전체인원'] * 100).round(1)
         total_rate_r = (usage_rank['순사용자'].sum() / usage_rank['전체인원'].sum() * 100) if usage_rank['전체인원'].sum() > 0 else 0
-        fig = px.pie(usage_rank, values='순사용자', names='직급그룹', hole=0.6, color='직급그룹', color_discrete_map=rank_color_map, custom_data=['사용률'])
-        fig.update_traces(textinfo='none', hovertemplate='%{label}<br>사용률: %{customdata[0]}%')
-        fig.update_layout(showlegend=False, height=180, margin=dict(l=10, r=10, t=10, b=10),
-            annotations=[dict(text=f'{total_rate_r:.1f}%', x=0.5, y=0.5, font_size=18, showarrow=False, font_weight='bold')])
+        fig = px.pie(usage_rank, values='사용률', names='직급그룹', hole=0.6, color='직급그룹', color_discrete_map=rank_color_map)
+        fig.update_traces(
+            textinfo='none',
+            customdata=usage_rank[['순사용자']].values,
+            hovertemplate='%{label}<br>사용률: %{value:.1f}%<br>인원: %{customdata[0]:.0f}명<extra></extra>'
+        )
+        fig.update_layout(showlegend=False, height=180, margin=dict(l=10, r=10, t=10, b=20))
         st.plotly_chart(fig, use_container_width=True)
