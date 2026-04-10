@@ -131,13 +131,14 @@ st.sidebar.markdown(f"""
 
 # C. 메뉴 (네비게이션)
 st.sidebar.markdown('<p style="font-size: 11px; font-weight: 700; color: #94a3b8; margin-left: 20px; margin-bottom: 8px;">DASHBOARD MENUS</p>', unsafe_allow_html=True)
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 pages = {
-    "Total Dashboard": {"path": "pages/1_total.py", "icon": "fa-chart-line"},
-    "File Analysis": {"path": "pages/2_File_Analysis.py", "icon": "fa-file-shield"},
-    "Dept & Team": {"path": "pages/3_department.py", "icon": "fa-building-columns"},
-    "Check KPI": {"path": "pages/4_kpi.py", "icon": "fa-circle-check"},
-    "Employee List": {"path": "pages/5_employee_list.py", "icon": "fa-users-viewfinder"}
+    "Total Dashboard": {"path": os.path.join(BASE_DIR, "pages", "1_total.py"), "icon": "fa-chart-line"},
+    "File Analysis":   {"path": os.path.join(BASE_DIR, "pages", "2_File_Analysis.py"), "icon": "fa-file-shield"},
+    "Dept & Team":     {"path": os.path.join(BASE_DIR, "pages", "3_department.py"), "icon": "fa-building-columns"},
+    "Check KPI":       {"path": os.path.join(BASE_DIR, "pages", "4_kpi.py"), "icon": "fa-circle-check"},
+    "Employee List":   {"path": os.path.join(BASE_DIR, "pages", "5_employee_list.py"), "icon": "fa-users-viewfinder"}
 }
 
 if 'current_page' not in st.session_state:
