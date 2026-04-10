@@ -89,10 +89,8 @@ def load_all():
             # No 컬럼 제외
             if "No" in df_users.columns:
                 df_users = df_users.drop(columns=["No"])
-            # 퇴사자 판별 (CURRENT_YEAR 기준 부서명이 빈칸이면 제외)
-            curr_dept_col = config.YEAR_COL_DEPT.format(year=config.CURRENT_YEAR)
-            if curr_dept_col in df_users.columns:
-                df_users = df_users[df_users[curr_dept_col].astype(str).str.strip() != ""]
+            # [수정] 부서명 공란 필터링 제거 (모든 인원 유지 - 과거 데이터 조인용)
+            # df_users = df_users[df_users[curr_dept_col].astype(str).str.strip() != ""]
     except Exception as e:
         st.warning(f"직원정보 로드 실패: {e}")
 
@@ -109,8 +107,14 @@ def map_all(df_users, df_login, df_download, df_proposal):
 
     # 1. UserNo 정규화 (3자리 zero-padding)
     def normalize_userno(val):
+        if pd.isna(val) or str(val).strip() == "" or str(val).lower() == 'nan':
+            return ""
+        # 소수점 제거 및 공백 제거
         s = str(val).strip().replace('.0', '')
-        return s.zfill(3) if s and s != 'nan' else ""
+        # 숫자인 경우 3자리 자릿수 맞춤
+        if s.isdigit():
+            return s.zfill(3)
+        return s
 
     if 'UserNo' in df_users.columns:
         df_users['UserNo'] = df_users['UserNo'].apply(normalize_userno)
@@ -165,26 +169,38 @@ def map_all(df_users, df_login, df_download, df_proposal):
 
         # 연도별 정보 적용 (부서명 Fallback 포함)
         def apply_year_info(row):
-            y = row.get('year')
-            if pd.isna(y): return row
+            # year가 없거나 유효하지 않으면 CURRENT_YEAR 사용
+            try:
+                y = row.get('year')
+                if pd.isna(y) or y == 0:
+                    y_str = str(config.CURRENT_YEAR)
+                else:
+                    y_str = str(int(y))
+            except:
+                y_str = str(config.CURRENT_YEAR)
             
-            y_str = str(int(y))
             dept_col = config.YEAR_COL_DEPT.format(year=y_str)
             hq_col = config.YEAR_COL_HQ.format(year=y_str)
             rank_col = config.YEAR_COL_RANK.format(year=y_str)
+            div_col = config.YEAR_COL_DIVISION.format(year=y_str)
             
             # 부서명 Fallback: 부서명(Dept) -> 본부/실(HQ) -> 사업부(Division)
+            # 1. 1차: 해당 연도 부서명
             dept_val = row.get(dept_col)
+            
+            # 2. 2차: 해당 연도 본부/실
             if pd.isna(dept_val) or str(dept_val).strip() == "":
                 dept_val = row.get(hq_col)
             
+            # 3. 3차: 해당 연도 사업부
             if pd.isna(dept_val) or str(dept_val).strip() == "":
-                div_col = config.YEAR_COL_DIVISION.format(year=y_str)
                 dept_val = row.get(div_col)
+
+            # 4. 4차: 최후의 수단으로 '정보미등록' (UI에서 처리하므로 일단 유지)
             
             row['이름'] = row.get('임직원명', "")
-            row['부서'] = dept_val
-            row['직급'] = row.get(rank_col, "")
+            row['부서'] = str(dept_val).strip() if not pd.isna(dept_val) else ""
+            row['직급'] = str(row.get(rank_col, "")).strip()
             return row
 
         df = df.apply(apply_year_info, axis=1)
@@ -193,6 +209,35 @@ def map_all(df_users, df_login, df_download, df_proposal):
     df_login = join_master_info(df_login, df_users)
     df_download = join_master_info(df_download, df_users)
     df_proposal = join_master_info(df_proposal, df_users)
+
+    # 4. 마스터(df_users) 자체에도 현재 연도 기준 표준 컬럼 추가
+    if not df_users.empty:
+        # df_users는 이미 마스터이므로 조인 대신 직접 apply_year_info와 유사하게 가공
+        # year 컬럼이 없으므로 CURRENT_YEAR를 강제 적용하여 부서/직급 생성
+        df_users['year'] = config.CURRENT_YEAR
+        
+        # dummy join_master_info 효과를 위해 apply_year_info 내부 로직 직접 호출 (또는 dummy join)
+        # 여기서는 단순히 apply_year_info와 같은 로직을 로컬 함수로 정의하여 적용
+        def prepare_master(row):
+            y_str = str(config.CURRENT_YEAR)
+            dept_col = config.YEAR_COL_DEPT.format(year=y_str)
+            hq_col = config.YEAR_COL_HQ.format(year=y_str)
+            div_col = config.YEAR_COL_DIVISION.format(year=y_str)
+            rank_col = config.YEAR_COL_RANK.format(year=y_str)
+            
+            dept_val = row.get(dept_col)
+            if pd.isna(dept_val) or str(dept_val).strip() == "":
+                dept_val = row.get(hq_col)
+            if pd.isna(dept_val) or str(dept_val).strip() == "":
+                dept_val = row.get(div_col)
+            
+            row['이름'] = row.get('임직원명', "")
+            row['부서'] = str(dept_val).strip() if not pd.isna(dept_val) else ""
+            row['직급'] = str(row.get(rank_col, "")).strip()
+            row['_ui_dept'] = row['부서'] if row['부서'] else "소속불분명"
+            return row
+            
+        df_users = df_users.apply(prepare_master, axis=1)
 
     return df_users, df_login, df_download, df_proposal
 
@@ -229,8 +274,9 @@ def add_rank_group(df):
     def group_rank(rank):
         if pd.isna(rank): return '기타'
         rank_str = str(rank).strip()
-        if rank_str in ['사원', '대리', '주임', '연구원']: return '실무자(사원/대리)'
-        if rank_str in ['차장', '팀장', '부장', '본부장', '이사', '실장', '수석', '상무', '전무']: return '관리자(차장↑)'
+        if rank_str in ['사원', '대리']: return '실무자(사원/대리)'
+        if rank_str in ['차장', '팀장', '부장', '본부장']: return '관리자(차장↑)'
+        if rank_str in ['임원']: return '임원'
         return '기타'
     df['직급그룹'] = df['직급'].apply(group_rank)
     return df
@@ -259,6 +305,7 @@ def run_all():
     df_users, df_login, df_download, df_proposal = map_all(df_users, df_login, df_download, df_proposal)
     
     # Post-process (직급 그룹화)
+    df_users = add_rank_group(df_users)
     df_login = add_rank_group(df_login)
     df_download = add_rank_group(df_download)
     df_proposal = add_rank_group(df_proposal)

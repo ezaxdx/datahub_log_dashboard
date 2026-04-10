@@ -18,6 +18,7 @@ COL_NAME_EMAIL = "PRS ID"
 
 # 시트 이름
 SHEET_NAME_USERS    = "직원정보"
+SHEET_NAME_IGNORE   = "퇴사자_ignore"
 SHEET_NAME_LOGIN    = "login"
 SHEET_NAME_DOWNLOAD = "download"
 SHEET_NAME_PROPOSAL = "제안서_ezPDF"
