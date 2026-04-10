@@ -198,6 +198,18 @@ def map_all(df_users, df_login, df_download, df_proposal):
 
             # 4. 4차: 최후의 수단으로 '정보미등록' (UI에서 처리하므로 일단 유지)
             
+            # 4. 부서별 현황 페이지 전용 커스텀 그룹핑 (부서_그룹)
+            # 기준: 특정 본부명(config.DEPT_SHOW_AS_HQ)이면 본부명, 그 외는 사업부명 (사업부 없으면 본부)
+            hq_val = str(row.get(hq_col, "")).strip()
+            div_val = str(row.get(div_col, "")).strip()
+            
+            if hq_val in config.DEPT_SHOW_AS_HQ:
+                row['부서_그룹'] = hq_val
+            elif div_val:
+                row['부서_그룹'] = div_val
+            else:
+                row['부서_그룹'] = hq_val if hq_val else "M-Level"
+            
             row['이름'] = row.get('임직원명', "")
             row['부서'] = str(dept_val).strip() if not pd.isna(dept_val) else ""
             row['직급'] = str(row.get(rank_col, "")).strip()
@@ -234,7 +246,18 @@ def map_all(df_users, df_login, df_download, df_proposal):
             row['이름'] = row.get('임직원명', "")
             row['부서'] = str(dept_val).strip() if not pd.isna(dept_val) else ""
             row['직급'] = str(row.get(rank_col, "")).strip()
-            row['_ui_dept'] = row['부서'] if row['부서'] else "소속불분명"
+            
+            # [추가] 부서별 현황 페이지용 그룹핑
+            hq_val = str(row.get(hq_col, "")).strip()
+            div_val = str(row.get(div_col, "")).strip()
+            if hq_val in config.DEPT_SHOW_AS_HQ:
+                row['부서_그룹'] = hq_val
+            elif div_val:
+                row['부서_그룹'] = div_val
+            else:
+                row['부서_그룹'] = hq_val if hq_val else "M-Level"
+                
+            row['_ui_dept'] = row['부서'] if row['부서'] else "M-Level"
             return row
             
         df_users = df_users.apply(prepare_master, axis=1)
