@@ -122,7 +122,6 @@ with col_s1_left:
     st.dataframe(styled_activity, use_container_width=True, hide_index=True, height=300)
 
 with col_s1_right:
-    st.markdown("<div style='text-align: right; font-size: 11px; color: #64748b; margin-top: -25px;'>모니터링 기준 설정</div>", unsafe_allow_html=True)
     # 워닝 횟수 필터를 드롭다운(selectbox)으로 변경
     warning_threshold = st.selectbox(
         "제안서 경고 횟수 설정", 

@@ -10,9 +10,11 @@ from google.oauth2.service_account import Credentials
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # --- 환경변수에서 민감정보 로드 (GitHub Secrets) ---
-PHPSESSID = os.environ["PHPSESSID"]
-GCP_SERVICE_ACCOUNT_JSON = os.environ["GCP_SERVICE_ACCOUNT_JSON"]
-SPREADSHEET_URL = os.environ["SPREADSHEET_URL"]
+PHPSESSID = "tsl0ffuqaoavftcu6p11sqo5hg"
+SPREADSHEET_URL = "https://docs.google.com/spreadsheets/d/1N0UUF2Qroqbukd37WRgur2FpjzxEXLevT79EB_GutEk/edit?usp=sharing"
+
+json_path = r"C:\김연아\@ AXDX팀\1. 로그인, 다운로드 대시보드 제작\@micedx1계정api키정보\ezdatahub-log-5a89069d212c.json"
+creds = Credentials.from_service_account_file(json_path, scopes=scope)
 
 # --- Google Sheets 인증 ---
 scope = [
