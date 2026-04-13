@@ -19,7 +19,7 @@ def render_metric_card(label, value, color="#6366f1"):
 st.markdown(f"""
 <div class="page-header" style="padding: 12px 24px; margin-bottom: 16px;">
     <div style="font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px; opacity: 0.8;">Analysis</div>
-    <div style="font-size: 24px; font-weight: 800; margin-bottom: 4px;"> {config.CURRENT_YEAR}년 EZ데이터허브 파일 다운로드 현황 대시보드</div>
+    <div style="font-size: 24px; font-weight: 800; margin-bottom: 4px;"> {config.CURRENT_YEAR} EZ데이터허브 파일 다운로드 현황 대시보드</div>
     <div style="font-size: 13px; opacity: 0.85; font-weight: 400;"> 사용자의 활동 내역 및 파일 다운로드 현황을 확인할 수 있습니다.</div>
 </div>
 """, unsafe_allow_html=True)
