@@ -112,7 +112,7 @@ with col_s1_left:
     st.markdown("##### 👤 직원별 활동 상세내역")
     # 조건부 서식 적용 (변경: 제안서 다운로드 컬럼에만 빨간색 표시)
     def highlight_proposal(val):
-        color = '#ef4444' if isinstance(val, (int, float)) and val >= 10 else ''
+        color = '#ef4444' if isinstance(val, (int, float)) and val >= warning_threshold else ''
         background = '#fee2e2' if color else ''
         return f'color: {color}; background-color: {background}; font-weight: bold;' if color else ''
 
@@ -122,13 +122,14 @@ with col_s1_left:
     st.dataframe(styled_activity, use_container_width=True, hide_index=True, height=300)
 
 with col_s1_right:
-    # 워닝 횟수 필터를 드롭다운(selectbox)으로 변경
+    # 제안서 경고 횟수 설정 (UI 위치 복구)
     warning_threshold = st.selectbox(
         "제안서 경고 횟수 설정", 
         options=[5, 10, 15, 20, 30, 50, 100], 
         index=1,
         key='user_page_threshold_v2'
     )
+    # 세션 상태 업데이트 (페이지 간 공유 및 유지 용도)
     st.session_state['warning_threshold'] = warning_threshold
 
     st.markdown("##### 🚨 제안서 다운로드 현황")
@@ -161,6 +162,9 @@ tl_data = f_proposal.copy()
 
 if selected_user != '전체 보기':
     tl_data = tl_data[tl_data['이름'] == selected_user]
+else:
+    # '전체 보기' 선택 시, 기준치(warning_threshold)를 초과한 모든 직원의 데이터만 필터링
+    tl_data = tl_data[tl_data['UserNo'].isin(heavy_users['UserNo'])]
 
 if not tl_data.empty:
     # 컬럼 정리: UserNo|이름|부서|직급|PRS ID|제안서 다운로드 수|문서이름|열람시간

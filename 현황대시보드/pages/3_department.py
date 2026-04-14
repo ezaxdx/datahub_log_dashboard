@@ -179,7 +179,7 @@ if not rank_data.empty:
     rank_counts = rank_data.groupby('직급').size().reset_index(name='횟수')
     rank_unique = rank_data.groupby('직급')['UserNo'].nunique().reset_index(name='순사용자')
     # 인원수 매핑 (임원 제외 전체 직급 목록 확보)
-    all_ranks_no_exec = f_u[df_u['직급'].isin(rank_order_no_exec)]
+    all_ranks_no_exec = f_u[f_u['직급'].isin(rank_order_no_exec)]
     rank_members = all_ranks_no_exec.groupby('직급').size().reset_index(name='전체인원')
     
     # 모든 직급이 나오도록 직급 인원수 데이터를 기준으로 조인

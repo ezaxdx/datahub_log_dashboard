@@ -310,16 +310,21 @@ def run_all():
     """
     df_users, df_login, df_download, df_proposal = load_all()
     
-    # [테스트 계정 제외] UserNo 556 제거 (명시적으로 문자열/숫자 모두 체크)
-    test_user = '556'
-    def exclude_test(df):
+    # [기본 제외 대상 제거] 테스트 계정 및 특정 유저 (config.DEFAULT_EXCLUDE_USERNO)
+    def exclude_users(df):
         if df.empty or 'UserNo' not in df.columns: return df
-        return df[df['UserNo'].astype(str).str.strip().str.replace(r'\.0$', '', regex=True).str.zfill(3) != test_user.zfill(3)]
+        # 정규화하여 비교
+        def norm(s): return str(s).strip().replace('.0', '').zfill(3)
+        excluded_norm = [norm(u) for u in config.DEFAULT_EXCLUDE_USERNO]
+        # 기존 테스트 계정 556도 함께 체크
+        excluded_norm.append('556')
+        
+        return df[~df['UserNo'].apply(norm).isin(excluded_norm)]
 
-    df_users = exclude_test(df_users)
-    df_login = exclude_test(df_login)
-    df_download = exclude_test(df_download)
-    df_proposal = exclude_test(df_proposal)
+    df_users = exclude_users(df_users)
+    df_login = exclude_users(df_login)
+    df_download = exclude_users(df_download)
+    df_proposal = exclude_users(df_proposal)
     
     # Preprocess (날짜/연도 추출)
     df_users, df_login, df_download, df_proposal = preprocess_all(df_users, df_login, df_download, df_proposal)
