@@ -154,7 +154,7 @@ with col_t_title:
     st.markdown("##### 🕒 다운로드 타임라인")
 with col_t_filter:
     # 시간 단위를 드롭다운(selectbox)으로 설정 (변경: 1시간 ~ 24시간)
-    time_options = ["로그 시간"] + [f"{i}시간" for i in range(1, 25)]
+    time_options = ["전체 로그"] + [f"{i}시간" for i in range(1, 25)]
     time_unit = st.selectbox("시간 단위", options=time_options, index=0, label_visibility="collapsed")
 
 # 타임라인 데이터 준비 (제안서 기준)
@@ -167,24 +167,59 @@ else:
     tl_data = tl_data[tl_data['UserNo'].isin(heavy_users['UserNo'])]
 
 if not tl_data.empty:
-    # 컬럼 정리: UserNo|이름|부서|직급|PRS ID|제안서 다운로드 수|문서이름|열람시간
-    tl_display = tl_data[['UserNo', '이름', '부서', '직급', config.COL_NAME_EMAIL, '문서경로', 'date']].copy()
-    tl_display.rename(columns={'문서경로': '문서이름', 'date': '열람시간'}, inplace=True)
-    tl_display['제안서 다운로드 수'] = 1
-    
-    if "시간" in time_unit and time_unit != "로그 시간":
-        try:
-            h_val = int(time_unit.replace("시간", ""))
-            tl_display['열람시간'] = tl_display['열람시간'].dt.floor(f'{h_val}H')
-        except:
-            pass
-    
-    # 열람시간 포맷
-    tl_display['열람시간'] = tl_display['열람시간'].dt.strftime('%Y-%m-%d %H:%M:%S')
-    
-    # 순서 조정
-    cols = ['UserNo', '이름', '부서', '직급', config.COL_NAME_EMAIL, '제안서 다운로드 수', '문서이름', '열람시간']
-    st.dataframe(tl_display[cols].sort_values('열람시간', ascending=False), use_container_width=True, hide_index=True, height=250)
+    if time_unit != "전체 로그":
+        h_val = int(time_unit.replace("시간", ""))
+        window = timedelta(hours=h_val)
+
+        results = []
+        for user_no, group in tl_data.groupby('UserNo'):
+            group = group.sort_values('date').reset_index(drop=True)
+            i = 0
+            while i < len(group):
+                window_start = group.loc[i, 'date']
+                window_end = window_start + window
+                # 윈도우 범위 내 행 추출
+                in_window = group[(group['date'] >= window_start) & (group['date'] < window_end)].copy()
+                # 중복 문서 제외 (문서경로 기준)
+                in_window_unique = in_window.drop_duplicates(subset=['문서경로'])
+                unique_count = len(in_window_unique)
+
+                for _, row in in_window_unique.iterrows():
+                    results.append({
+                        'UserNo': user_no,
+                        '이름': row['이름'],
+                        '부서': row['부서'],
+                        '직급': row['직급'],
+                        config.COL_NAME_EMAIL: row[config.COL_NAME_EMAIL],
+                        '문서이름': row['문서경로'],
+                        '열람시간': row['date'],
+                        '윈도우시작': window_start,
+                        '윈도우종료': window_end,
+                        f'{h_val}시간내_순다운로드수': unique_count
+                    })
+                # 다음 윈도우는 현재 윈도우 마지막 행 다음부터
+                i += len(in_window)
+
+        if results:
+            tl_display = pd.DataFrame(results)
+            tl_display['열람시간'] = tl_display['열람시간'].dt.strftime('%Y-%m-%d %H:%M:%S')
+            tl_display['윈도우시작'] = tl_display['윈도우시작'].dt.strftime('%Y-%m-%d %H:%M')
+            tl_display['윈도우종료'] = tl_display['윈도우종료'].dt.strftime('%Y-%m-%d %H:%M')
+
+            cols = ['이름', '부서', '직급', config.COL_NAME_EMAIL, 
+                    f'{h_val}시간내_순다운로드수', '윈도우시작', '문서이름', '열람시간']
+            st.dataframe(
+                tl_display[cols].sort_values([f'{h_val}시간내_순다운로드수', '열람시간'], ascending=[False, False]), 
+                use_container_width=True, hide_index=True, height=250
+            )
+        else:
+            st.info("해당하는 다운로드 기록이 없습니다.")
+    else:
+        # 전체 로그: 중복 문서 제외 후 전체 표시
+        tl_display = tl_data.drop_duplicates(subset=['UserNo', '문서경로'])[['UserNo', '이름', '부서', '직급', config.COL_NAME_EMAIL, '문서경로', 'date']].copy()
+        tl_display.rename(columns={'문서경로': '문서이름', 'date': '열람시간'}, inplace=True)
+        tl_display['열람시간'] = tl_display['열람시간'].dt.strftime('%Y-%m-%d %H:%M:%S')
+        st.dataframe(tl_display.sort_values('열람시간', ascending=False), use_container_width=True, hide_index=True, height=250)
 else:
     st.info("해당하는 다운로드 기록이 없습니다.")
 
