@@ -205,10 +205,20 @@ with c1:
             return None, None
         
         proj_info = f_proposal['문서경로'].apply(parse_project).apply(pd.Series)
-        proj_info.columns = ['프로젝트 코드', '프로젝트명']
-        top10_proj = proj_info.dropna().groupby(['프로젝트 코드', '프로젝트명']).size().reset_index(name='횟수')
+        proj_info.columns = ['코드', '프로젝트명']
+        top10_proj = proj_info.dropna().groupby(['코드', '프로젝트명']).size().reset_index(name='횟수')
         top10_proj = top10_proj.sort_values('횟수', ascending=False).head(10) # 다시 Top 10으로 복구
-        st.dataframe(top10_proj, use_container_width=True, hide_index=True, height=table_height)
+        st.dataframe(
+            top10_proj, 
+            use_container_width=True, 
+            hide_index=True, 
+            height=table_height,
+            column_config={
+                "코드": st.column_config.TextColumn(width="small"),
+                "프로젝트명": st.column_config.TextColumn(width="medium"),
+                "횟수": st.column_config.NumberColumn(width="small")
+            }
+        )
     else: st.info("데이터 없음")
 
 with c2:
@@ -221,7 +231,16 @@ with c2:
         top10_p = proj_logs.groupby('파일명').size().reset_index(name='횟수')
         top10_p.columns = ['파일명', '횟수']
         top10_p = top10_p.sort_values('횟수', ascending=False).head(10)
-        st.dataframe(top10_p, use_container_width=True, hide_index=True, height=table_height)
+        st.dataframe(
+            top10_p, 
+            use_container_width=True, 
+            hide_index=True, 
+            height=table_height,
+            column_config={
+                "파일명": st.column_config.TextColumn(width="medium"),
+                "횟수": st.column_config.NumberColumn(width="small")
+            }
+        )
     else: st.info("데이터 없음")
 
 with c3:
@@ -234,7 +253,16 @@ with c3:
         top10_ops = ops_logs.groupby('파일명').size().reset_index(name='횟수')
         top10_ops.columns = ['파일명', '횟수']
         top10_ops = top10_ops.sort_values('횟수', ascending=False).head(10)
-        st.dataframe(top10_ops, use_container_width=True, hide_index=True, height=table_height)
+        st.dataframe(
+            top10_ops, 
+            use_container_width=True, 
+            hide_index=True, 
+            height=table_height,
+            column_config={
+                "파일명": st.column_config.TextColumn(width="medium"),
+                "횟수": st.column_config.NumberColumn(width="small")
+            }
+        )
     else: st.info("데이터 없음")
 
 with c4:
@@ -247,5 +275,14 @@ with c4:
         top10_supp = supp_logs.groupby('파일명').size().reset_index(name='횟수')
         top10_supp.columns = ['파일명', '횟수']
         top10_supp = top10_supp.sort_values('횟수', ascending=False).head(10)
-        st.dataframe(top10_supp, use_container_width=True, hide_index=True, height=table_height)
+        st.dataframe(
+            top10_supp, 
+            use_container_width=True, 
+            hide_index=True, 
+            height=table_height,
+            column_config={
+                "파일명": st.column_config.TextColumn(width="medium"),
+                "횟수": st.column_config.NumberColumn(width="small")
+            }
+        )
     else: st.info("데이터 없음")
