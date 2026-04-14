@@ -28,3 +28,7 @@ SHEET_NAME_IGNORE   = "퇴사자_ignore"
 SHEET_NAME_LOGIN    = "login"
 SHEET_NAME_DOWNLOAD = "download"
 SHEET_NAME_PROPOSAL = "제안서_ezPDF"
+
+# 사이드바 기본 제외 대상 (초기 선택에서 제외, Select All 시 포함)
+DEFAULT_EXCLUDE_DEPTS = ["AXDX팀", "ICT융합개발본부"]
+DEFAULT_EXCLUDE_USERNO = ["곽은경_280"]
