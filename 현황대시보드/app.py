@@ -178,7 +178,21 @@ with st.sidebar.expander("🔍 상세 필터 (조회 기준)", expanded=False):
     if not df_u.empty:
         # data.py에서 이미 표준화된 '부서' 및 '_ui_dept'가 제공됨
         all_depts = sorted(df_u['_ui_dept'].unique().tolist())
-        st.session_state['sel_dept'] = st.multiselect("부서명", options=all_depts)
+        
+        exclude_userno = config.DEFAULT_EXCLUDE_USERNO
+        exclude_names = df_u[df_u['UserNo'].isin(exclude_userno)]['_ui_dept'].tolist()
+        exclude_depts = config.DEFAULT_EXCLUDE_DEPTS + exclude_names
+        
+        default_depts = [d for d in all_depts if d not in exclude_depts]
+
+        col_dept1, col_dept2 = st.columns([3, 1])
+        with col_dept1:
+            sel_dept = st.multiselect("부서명", options=all_depts, default=default_depts)
+        with col_dept2:
+            if st.button("전체", key="dept_select_all"):
+                sel_dept = all_depts
+        
+        st.session_state['sel_dept'] = sel_dept
         st.session_state['sel_rank'] = st.multiselect("직급 그룹", options=['실무자(사원/대리)', '관리자(차장↑)', '임원'])
 
 # --- 3. 선택된 페이지 실행 ---
