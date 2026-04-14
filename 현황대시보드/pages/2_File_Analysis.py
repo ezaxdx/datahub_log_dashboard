@@ -116,7 +116,7 @@ with col_s1_left:
         background = '#fee2e2' if color else ''
         return f'color: {color}; background-color: {background}; font-weight: bold;' if color else ''
 
-    styled_activity = df_user_activity.sort_values('총로그인수', ascending=False).style.map(
+    styled_activity = df_user_activity.sort_values(['제안서다운로드', '총로그인수'], ascending=False).style.map(
         highlight_proposal, subset=['제안서다운로드']
     )
     st.dataframe(styled_activity, use_container_width=True, hide_index=True, height=300)

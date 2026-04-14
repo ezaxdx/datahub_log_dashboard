@@ -122,7 +122,7 @@ active_df = active_df[~active_df['부서_그룹'].isin(exclude_groups)]
 dept_counts = active_df.groupby('부서_그룹').size().reset_index(name='횟수')
 dept_unique = active_df.groupby('부서_그룹')['UserNo'].nunique().reset_index(name='순사용자')
 # 인원수 매핑 (df_users 기준 - 전체 부서 목록 확보)
-dept_members = df_u.groupby('부서_그룹').size().reset_index(name='전체인원')
+dept_members = f_u.groupby('부서_그룹').size().reset_index(name='전체인원')
 
 # 모든 부서가 나오도록 부서 인원수 데이터를 기준으로 조인
 dept_data = pd.merge(dept_members, dept_counts, on='부서_그룹', how='left')
@@ -179,7 +179,7 @@ if not rank_data.empty:
     rank_counts = rank_data.groupby('직급').size().reset_index(name='횟수')
     rank_unique = rank_data.groupby('직급')['UserNo'].nunique().reset_index(name='순사용자')
     # 인원수 매핑 (임원 제외 전체 직급 목록 확보)
-    all_ranks_no_exec = df_u[df_u['직급'].isin(rank_order_no_exec)]
+    all_ranks_no_exec = f_u[df_u['직급'].isin(rank_order_no_exec)]
     rank_members = all_ranks_no_exec.groupby('직급').size().reset_index(name='전체인원')
     
     # 모든 직급이 나오도록 직급 인원수 데이터를 기준으로 조인

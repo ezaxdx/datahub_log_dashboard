@@ -136,8 +136,8 @@ def get_color_map(labels):
     return {label: palette[i % len(palette)] for i, label in enumerate(sorted(labels))}
 
 # 데이터 준비
-total_users_dept = df_u.groupby('부서')['UserNo'].nunique().reset_index(name='전체인원')
-total_users_rank = df_u.groupby('직급그룹')['UserNo'].nunique().reset_index(name='전체인원')
+total_users_dept = f_u.groupby('부서')['UserNo'].nunique().reset_index(name='전체인원')
+total_users_rank = f_u.groupby('직급그룹')['UserNo'].nunique().reset_index(name='전체인원')
 active_p = f_proposal[['UserNo', '부서', '직급그룹']]
 active_d = f_download[f_download['경로 메뉴명'].astype(str).str.contains('프로젝트|운영자료|서포트', na=False)][['UserNo', '부서', '직급그룹']]
 active_users_all = pd.concat([active_p, active_d]).drop_duplicates(subset=['UserNo'])
