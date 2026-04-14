@@ -71,8 +71,6 @@ for df in [f_login, f_download, f_proposal, f_u]:
             df['부서'] = df['부서'].replace(['', None, 'nan', 'NaN'], '정보미등록').fillna('정보미등록')
         if '직급그룹' in df.columns: 
             df['직급그룹'] = df['직급그룹'].replace(['', None, 'nan', 'NaN'], '정보미등록').fillna('정보미등록')
-        if '부서' in df.columns: 
-            df['부서'] = df['부서'].replace(['', None, 'nan', 'NaN'], '정보미등록').fillna('정보미등록')
 
 def get_menu_count(df, pattern):
     if df.empty or '경로 메뉴명' not in df.columns: return 0
@@ -126,68 +124,70 @@ with col_mid_right:
         else: st.success("경고 대상 없음")
     else: st.info("데이터 없음")
 
-# --- 6. 하단 2행 (부서/직급별 사용량 및 사용률 분석) ---
+# --- 6. 하단 2행 (부서/직급별 사용량 및 사용률 분석 - TOP5 표 교체) ---
 st.markdown("<div style='height: 5px;'></div>", unsafe_allow_html=True)
-c1, c2, c3, c4 = st.columns(4)
 
-# 컬러 맵 생성 (일관성 유지)
-def get_color_map(labels):
-    palette = px.colors.qualitative.Pastel + px.colors.qualitative.Set3
-    return {label: palette[i % len(palette)] for i, label in enumerate(sorted(labels))}
-
-# 데이터 준비
-total_users_dept = f_u.groupby('부서')['UserNo'].nunique().reset_index(name='전체인원')
-total_users_rank = f_u.groupby('직급그룹')['UserNo'].nunique().reset_index(name='전체인원')
-active_p = f_proposal[['UserNo', '부서', '직급그룹']]
-active_d = f_download[f_download['경로 메뉴명'].astype(str).str.contains('프로젝트|운영자료|서포트', na=False)][['UserNo', '부서', '직급그룹']]
+# 데이터 준비 (분모를 f_u 기준으로 통일)
+active_p = f_proposal[['UserNo', '부서', '직급']]
+active_d = f_download[f_download['경로 메뉴명'].astype(str).str.contains('프로젝트|운영자료|서포트', na=False)][['UserNo', '부서', '직급']]
 active_users_all = pd.concat([active_p, active_d]).drop_duplicates(subset=['UserNo'])
+
+# 1. 부서별 로그인 TOP5
+login_dept_top5 = (
+    f_login.groupby('부서').size()
+    .reset_index(name='로그인수')
+    .sort_values('로그인수', ascending=False)
+    .head(5)
+    .reset_index(drop=True)
+)
+
+# 2. 부서별 사용률 TOP5
 active_by_dept = active_users_all.groupby('부서')['UserNo'].nunique().reset_index(name='순사용자')
-active_by_rank = active_users_all.groupby('직급그룹')['UserNo'].nunique().reset_index(name='순사용자')
+total_users_dept = f_u.groupby('부서')['UserNo'].nunique().reset_index(name='전체인원')
+usage_dept = pd.merge(total_users_dept, active_by_dept, on='부서', how='left').fillna(0)
+usage_dept['사용률(%)'] = (usage_dept['순사용자'] / usage_dept['전체인원'] * 100).round(1)
+usage_dept_top5 = (
+    usage_dept[['부서', '전체인원', '순사용자', '사용률(%)']]
+    .sort_values('사용률(%)', ascending=False)
+    .head(5)
+    .reset_index(drop=True)
+)
 
-# 부서/직급별 컬러맵
-dept_color_map = get_color_map(total_users_dept['부서'].unique())
-rank_color_map = get_color_map(total_users_rank['직급그룹'].unique())
+# 3. 직급별 로그인 현황
+login_rank_all = (
+    f_login.groupby('직급').size()
+    .reset_index(name='로그인수')
+    .sort_values('로그인수', ascending=False)
+    .reset_index(drop=True)
+)
 
-with c1:
-    st.markdown("##### 부서별 활동 (로그인)")
-    if not f_login.empty:
-        login_dept = f_login.groupby('부서').size().reset_index(name='건수')
-        total_login = login_dept['건수'].sum()
-        fig = px.pie(login_dept, values='건수', names='부서', hole=0.6, color='부서', color_discrete_map=dept_color_map)
-        fig.update_traces(textinfo='none', hovertemplate='%{label}<br>활동량: %{value}건')
-        fig.update_layout(showlegend=True, height=180, margin=dict(l=10, r=10, t=10, b=20),
-            legend=dict(orientation="v", yanchor="middle", y=0.5, xanchor="left", x=-0.5, font=dict(size=9)))
-        st.plotly_chart(fig, use_container_width=True)
+# 4. 직급별 사용률 현황
+active_by_rank = active_users_all.groupby('직급')['UserNo'].nunique().reset_index(name='순사용자')
+total_users_rank = f_u.groupby('직급')['UserNo'].nunique().reset_index(name='전체인원')
+usage_rank = pd.merge(total_users_rank, active_by_rank, on='직급', how='left').fillna(0)
+usage_rank['사용률(%)'] = (usage_rank['순사용자'] / usage_rank['전체인원'] * 100).round(1)
+usage_rank_all = (
+    usage_rank[['직급', '전체인원', '순사용자', '사용률(%)']]
+    .sort_values('사용률(%)', ascending=False)
+    .reset_index(drop=True)
+)
 
-with c2:
-    st.markdown("##### 부서별 사용률 (%)")
-    usage_dept = pd.merge(total_users_dept, active_by_dept, on='부서', how='left').fillna(0)
-    if not usage_dept.empty:
-        usage_dept['사용률'] = (usage_dept['순사용자'] / usage_dept['전체인원'] * 100).fillna(0).round(1)
-        total_rate = (usage_dept['순사용자'].sum() / usage_dept['전체인원'].sum() * 100) if usage_dept['전체인원'].sum() > 0 else 0
-        fig = px.pie(usage_dept, values='순사용자', names='부서', hole=0.6, color='부서', color_discrete_map=dept_color_map)
-        fig.update_traces(textinfo='none', customdata=usage_dept[['사용률']].values, hovertemplate='%{label}<br>사용률: %{customdata[0]:.1f}%<extra></extra>')
-        fig.update_layout(showlegend=False, height=180, margin=dict(l=10, r=10, t=10, b=20))
-        st.plotly_chart(fig, use_container_width=True)
+# 레이아웃 배치 (1행 4열 표 교체)
+col_t1, col_t2, col_t3, col_t4 = st.columns(4)
+table_height = 210
 
-with c3:
-    st.markdown("##### 직급별 활동 (로그인)")
-    if not f_login.empty:
-        login_rank = f_login.groupby('직급그룹').size().reset_index(name='건수')
-        total_login_r = login_rank['건수'].sum()
-        fig = px.pie(login_rank, values='건수', names='직급그룹', hole=0.6, color='직급그룹', color_discrete_map=rank_color_map)
-        fig.update_traces(textinfo='none', hovertemplate='%{label}<br>활동량: %{value}건')
-        fig.update_layout(showlegend=True, height=180, margin=dict(l=10, r=10, t=10, b=20),
-            legend=dict(orientation="v", yanchor="middle", y=0.5, xanchor="left", x=-0.5, font=dict(size=9)))
-        st.plotly_chart(fig, use_container_width=True)
+with col_t1:
+    st.markdown("##### 부서별 로그인 TOP5")
+    st.dataframe(login_dept_top5, use_container_width=True, hide_index=True, height=table_height)
 
-with c4:
-    st.markdown("##### 직급별 사용률 (%)")
-    usage_rank = pd.merge(total_users_rank, active_by_rank, on='직급그룹', how='left').fillna(0)
-    if not usage_rank.empty:
-        usage_rank['사용률'] = (usage_rank['순사용자'] / usage_rank['전체인원'] * 100).fillna(0).round(1)
-        total_rate_r = (usage_rank['순사용자'].sum() / usage_rank['전체인원'].sum() * 100) if usage_rank['전체인원'].sum() > 0 else 0
-        fig = px.pie(usage_rank, values='순사용자', names='직급그룹', hole=0.6, color='직급그룹', color_discrete_map=rank_color_map)
-        fig.update_traces(textinfo='none', customdata=usage_rank[['사용률']].values, hovertemplate='%{label}<br>사용률: %{customdata[0]:.1f}%<extra></extra>')
-        fig.update_layout(showlegend=False, height=180, margin=dict(l=10, r=10, t=10, b=20))
-        st.plotly_chart(fig, use_container_width=True)
+with col_t2:
+    st.markdown("##### 부서별 사용률 TOP5")
+    st.dataframe(usage_dept_top5, use_container_width=True, hide_index=True, height=table_height)
+
+with col_t3:
+    st.markdown("##### 직급별 로그인 현황")
+    st.dataframe(login_rank_all, use_container_width=True, hide_index=True, height=table_height)
+
+with col_t4:
+    st.markdown("##### 직급별 사용률 현황")
+    st.dataframe(usage_rank_all, use_container_width=True, hide_index=True, height=table_height)
