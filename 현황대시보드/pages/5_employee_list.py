@@ -8,34 +8,8 @@ st.markdown(f"{config.CURRENT_YEAR}년 기준 EZ데이터허브의 등록된 재
 # --- 1. 데이터 가져오기 ---
 df_u = st.session_state.get('df_users', pd.DataFrame())
 
-# --- 2. 사이드바 필터 적용 ---
-sel_dept = st.session_state.get('sel_dept', [])
-sel_rank = st.session_state.get('sel_rank', [])
-
-def filter_employee_list(df):
-    if df.empty: return df
-    res = df.copy()
-    
-    # 부서 필터
-    if sel_dept and '_ui_dept' in res.columns:
-        res = res[res['_ui_dept'].isin(sel_dept)]
-    
-    # 직급 그룹 필터
-    if sel_rank:
-        rank_col = config.YEAR_COL_RANK.format(year=config.CURRENT_YEAR)
-        def group_rank_master(row):
-            rank = row.get(rank_col)
-            if pd.isna(rank): return '기타'
-            r_str = str(rank).strip()
-            if r_str in ['사원', '대리', '주임', '연구원']: return '실무자(사원/대리)'
-            if r_str in ['차장', '팀장', '부장', '본부장', '이사', '실장', '수석', '상무', '전무']: return '관리자(차장↑)'
-            return '기타'
-        res['_ui_rank_group'] = res.apply(group_rank_master, axis=1)
-        res = res[res['_ui_rank_group'].isin(sel_rank)]
-        
-    return res
-
-f_user_list = filter_employee_list(df_u)
+# --- 2. 전체 직원 표시 (사이드바 필터 무관) ---
+f_user_list = df_u.copy()
 
 # --- 3. 데이터 표시 ---
 if not f_user_list.empty:
