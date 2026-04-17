@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 import config
 import data
 import os
+import notifier  # 추가
 
 st.set_page_config(page_title="EZ데이터허브 사용 로그 대시보드",layout="wide")
 
@@ -96,6 +97,13 @@ if 'df_users' not in st.session_state or reload_requested:
             if 'warning_threshold' not in st.session_state:
                 st.session_state['warning_threshold'] = 10
             st.toast("데이터 로드 완료!")
+            
+            # --- [자동 위험 감지 및 이메일 알림] ---
+            try:
+                notifier.run_auto_check(df_proposal, df_download)
+            except Exception as notify_e:
+                print(f"알림 발송 중 오류 발생: {notify_e}")
+                
         except Exception as e:
             st.error(f"데이터 로드 중 오류 발생: {e}")
             st.stop()

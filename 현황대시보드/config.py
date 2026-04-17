@@ -32,3 +32,21 @@ SHEET_NAME_PROPOSAL = "제안서_ezPDF"
 # 사이드바 기본 제외 대상 (초기 선택에서 제외, Select All 시 포함)
 DEFAULT_EXCLUDE_DEPTS = ["AXDX팀", "ICT융합개발본부"]
 DEFAULT_EXCLUDE_USERNO = ["곽은경_280"]
+
+# --- [이메일 알림 설정] ---
+# 발신용 SMTP 설정 (Gmail 기준 예시)
+SMTP_CONFIG = {
+    "host": "smtp.gmail.com",
+    "port": 587,
+    "user": "ez.micedx1@gmail.com",       # 실제 발신 이메일 주소로 변경 필요
+    "password": "fkue rmqc syrh rjjw"                  # 16자리 앱 비밀번호 입력 필요
+}
+
+# 알림 수신자 리스트 (회사 이메일 등 여러 명 가능)
+NOTIFICATION_RECIPIENTS = ["ekks55@ezpmp.co.kr","hyj@ezpmp.co.kr","k2cow0610@ezpmp.co.kr"]
+
+# 위험 감지 임계치 (다운로드 횟수)
+NOTIFICATION_THRESHOLD = 10
+
+# 알림 대상 카테고리 (경로 메뉴명에 포함된 경우 합산)
+ALERT_CATEGORIES = ["제안서", "운영자료", "서포트", "프로젝트"]
