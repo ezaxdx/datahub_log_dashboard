@@ -9,21 +9,43 @@ from google.oauth2.service_account import Credentials
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-# --- 환경변수에서 민감정보 로드 (GitHub Secrets) ---
+# --- API 세션 설정 ---
 PHPSESSID = "tsl0ffuqaoavftcu6p11sqo5hg"
-SPREADSHEET_URL = "https://docs.google.com/spreadsheets/d/1N0UUF2Qroqbukd37WRgur2FpjzxEXLevT79EB_GutEk/edit?usp=sharing"
 
-json_path = r"C:\김연아\@ AXDX팀\1. 로그인, 다운로드 대시보드 제작\@micedx1계정api키정보\ezdatahub-log-5a89069d212c.json"
-creds = Credentials.from_service_account_file(json_path, scopes=scope)
+# --- Google Sheets 인증 설정 ---
+def load_credentials():
+    import tomllib
+    # .streamlit/secrets.toml 위치 (상위 폴더에 있는 경우 고려)
+    secrets_path = os.path.join(os.path.dirname(__file__), "..", ".streamlit", "secrets.toml")
+    
+    if os.path.exists(secrets_path):
+        with open(secrets_path, "rb") as f:
+            secrets = tomllib.load(f)
+            if "gcp_service_account" in secrets:
+                print("secrets.toml에서 인증 정보를 로드했습니다.")
+                return (
+                    Credentials.from_service_account_info(secrets["gcp_service_account"], scopes=scope),
+                    secrets.get("gcp_sheet_url")
+                )
+    
+    # Fallback: 기존 로컬 JSON 키 파일 (만약의 경우 대비)
+    json_path = r"C:\김연아\@ AXDX팀\1. 로그인, 다운로드 대시보드 제작\@micedx1계정api키정보\ezdatahub-log-5a89069d212c.json"
+    if os.path.exists(json_path):
+        print("로컬 JSON 파일에서 인증 정보를 로드했습니다.")
+        return (
+            Credentials.from_service_account_file(json_path, scopes=scope),
+            "https://docs.google.com/spreadsheets/d/1N0UUF2Qroqbukd37WRgur2FpjzxEXLevT79EB_GutEk/edit?usp=sharing"
+        )
+    
+    raise FileNotFoundError("인증 정보(secrets.toml 또는 JSON 키)를 찾을 수 없습니다.")
 
-# --- Google Sheets 인증 ---
 scope = [
     "https://www.googleapis.com/auth/spreadsheets",
     "https://www.googleapis.com/auth/drive"
 ]
 
-creds_info = json.loads(GCP_SERVICE_ACCOUNT_JSON)
-creds = Credentials.from_service_account_info(creds_info, scopes=scope)
+# 인증 실행
+creds, SPREADSHEET_URL = load_credentials()
 gc = gspread.authorize(creds)
 doc = gc.open_by_url(SPREADSHEET_URL)
 
