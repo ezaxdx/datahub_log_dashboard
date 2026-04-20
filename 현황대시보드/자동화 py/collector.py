@@ -13,6 +13,28 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 PHPSESSID = "tsl0ffuqaoavftcu6p11sqo5hg"
 
 # --- Google Sheets 인증 설정 ---
+def get_last_no_from_sheet(worksheet, col_name="NO"):
+    """시트의 마지막 행에서 고유 번호를 읽어옵니다. (자가 복구용)"""
+    try:
+        all_vals = worksheet.get_all_values()
+        if len(all_vals) <= 1: return 0
+        
+        headers = all_vals[0]
+        if col_name not in headers:
+            # 대소문자 구분 없이 재시도
+            potential_cols = [c for c in headers if c.upper() == col_name.upper()]
+            if not potential_cols: return 0
+            col_name = potential_cols[0]
+            
+        col_idx = headers.index(col_name)
+        last_row = all_vals[-1]
+        
+        last_val = last_row[col_idx]
+        return int(float(str(last_val).strip())) if str(last_val).strip() else 0
+    except Exception as e:
+        print(f"[Warning] 시트에서 마지막 번호를 읽는 중 오류 발생: {e}")
+        return 0
+
 def load_credentials():
     import tomllib
     # .streamlit/secrets.toml 위치 (상위 폴더에 있는 경우 고려)
@@ -56,15 +78,19 @@ doc = gc.open_by_url(SPREADSHEET_URL)
 
 print("=== 다운로드 로그 수집 시작 ===")
 
-# checkpoint 읽기
-dl_checkpoint_file = "last_download_log_no.txt"
+# checkpoint 읽기 (로컬 파일)
+dl_checkpoint_file = "checkpoints/last_download_log_no.txt"
+file_last_dl = 0
 if os.path.exists(dl_checkpoint_file):
     with open(dl_checkpoint_file, "r") as f:
-        last_dl_log = int(f.read().strip())
-else:
-    last_dl_log = 0
+        file_last_dl = int(f.read().strip())
 
-print("이전 마지막 download log_no:", last_dl_log)
+# 자가 복구: Google Sheets에서 마지막 번호 직접 확인
+worksheet_dl = doc.worksheet("download")
+sheet_last_dl = get_last_no_from_sheet(worksheet_dl, "No")
+
+last_download_log = max(file_last_dl, sheet_last_dl)
+print(f"다운로드 수집 시작점: {last_download_log} (파일:{file_last_dl}, 시트:{sheet_last_dl})")
 
 # API 호출
 dl_url = "https://ictwbs.ezpmp.co.kr/ict.wbs/api/micedx.download.list.php"
@@ -146,7 +172,7 @@ else:
             df_dl = df_dl.fillna("")
 
             # Google Sheets 업로드
-            worksheet_dl = doc.worksheet("download")
+            # worksheet_dl = doc.worksheet("download") # 위에서 미리 정의됨
             existing_dl = worksheet_dl.get_all_values()
             start_row_dl = len(existing_dl) + 1
             worksheet_dl.update(f"A{start_row_dl}", df_dl.values.tolist())
@@ -165,15 +191,19 @@ else:
 
 print("=== 로그인 로그 수집 시작 ===")
 
-# checkpoint 읽기
-login_checkpoint_file = "last_login_log_no.txt"
+# checkpoint 읽기 (로컬 파일)
+login_checkpoint_file = "checkpoints/last_login_log_no.txt"
+file_last_login = 0
 if os.path.exists(login_checkpoint_file):
     with open(login_checkpoint_file, "r") as f:
-        last_login_log = int(f.read().strip())
-else:
-    last_login_log = 0
+        file_last_login = int(f.read().strip())
 
-print("이전 마지막 login log_no:", last_login_log)
+# 자가 복구: Google Sheets에서 마지막 번호 직접 확인
+worksheet_login = doc.worksheet("login")
+sheet_last_login = get_last_no_from_sheet(worksheet_login, "NO")
+
+last_login_log = max(file_last_login, sheet_last_login)
+print(f"로그인 수집 시작점: {last_login_log} (파일:{file_last_login}, 시트:{sheet_last_login})")
 
 # API 호출
 login_url = "https://ictwbs.ezpmp.co.kr/ict.wbs/api/micedx.loginhistory.list.php"
@@ -240,7 +270,7 @@ else:
             df_login = df_login.fillna("")
 
             # Google Sheets 업로드
-            worksheet_login = doc.worksheet("login")
+            # worksheet_login = doc.worksheet("login") # 위에서 미리 정의됨
             worksheet_login.append_rows(df_login.values.tolist())
             print("로그인 Google Sheets 업로드 완료")
 

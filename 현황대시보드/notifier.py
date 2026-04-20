@@ -6,7 +6,7 @@ import config
 import email_utils
 
 # 알림 기록 파일 경로
-NOTIFIED_RECORDS_FILE = "notified_records.json"
+NOTIFIED_RECORDS_FILE = "checkpoints/notified_records.json"
 
 def get_check_interval():
     """

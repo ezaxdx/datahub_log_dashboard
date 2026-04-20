@@ -54,6 +54,13 @@ def load_all():
                     new_headers.append(col)
             
             df = pd.DataFrame(data[1:], columns=new_headers)
+            
+            # [추가] 고유 번호 기반 중복 제거 (방어 로직)
+            pk_cols = ['NO', 'No', '번호']
+            actual_pk = [c for c in pk_cols if c in df.columns]
+            if actual_pk:
+                df = df.drop_duplicates(subset=actual_pk, keep='last')
+            
             # 숫자 자동 변환
             for col in df.columns:
                 try:
@@ -133,7 +140,10 @@ def map_all(df_users, df_login, df_download, df_proposal):
     # 2. PRS ID -> UserNo 역매핑 브릿지 (직원정보 마스터 활용)
     email_to_userno = {}
     if config.COL_NAME_EMAIL in df_users.columns:
-        email_to_userno = df_users[df_users[config.COL_NAME_EMAIL].str.strip() != ""].set_index(config.COL_NAME_EMAIL)['UserNo'].to_dict()
+        # 이메일 앞뒤 공백 제거 및 소문자 통일하여 매핑 사전 생성
+        temp_df = df_users.copy()
+        temp_df[config.COL_NAME_EMAIL] = temp_df[config.COL_NAME_EMAIL].astype(str).str.strip().str.lower()
+        email_to_userno = temp_df[temp_df[config.COL_NAME_EMAIL] != ""].set_index(config.COL_NAME_EMAIL)['UserNo'].to_dict()
 
     # 3. 각 시트 조인 처리
     def join_master_info(df, master):
@@ -147,7 +157,8 @@ def map_all(df_users, df_login, df_download, df_proposal):
         
         # PRS ID (이메일) 컬럼이 있고 UserNo가 없는 경우 매핑 (제안서 등)
         if config.COL_NAME_EMAIL in df.columns and (not u_col or (df[u_col] == "").all()):
-            df[config.COL_NAME_EMAIL] = df[config.COL_NAME_EMAIL].astype(str).str.strip()
+            # 로그의 이메일도 동일하게 공백 제거 및 소문자 정규화 수행
+            df[config.COL_NAME_EMAIL] = df[config.COL_NAME_EMAIL].astype(str).str.strip().str.lower()
             df['UserNo_mapped'] = df[config.COL_NAME_EMAIL].map(email_to_userno)
             u_col = 'UserNo_mapped'
         
@@ -289,24 +300,34 @@ def preprocess_all(df_users, df_login, df_download, df_proposal):
         if df.empty: return df
         df = df.copy()
         
-        # 1. 날짜 및 시간 컬럼 통합 (정밀한 구간 필터링용)
+        # 1. 날짜 및 시간 컬럼 통합 (유효한 데이터가 있는 컬럼 우선 탐색)
         date_time_pairs = [
+            ('등록일', '등록시간'),
             ('다운로드 일자', '다운로드 시간'),
-            ('로그인 일자', '로그인 시간'),
-            ('등록일', '등록시간') # 제안서 등 기타 시트 대비
+            ('로그인 일자', '로그인 시간')
         ]
+        
+        best_date_series = None
+        max_valid_dates = -1
         
         for d_col, t_col in date_time_pairs:
             if d_col in df.columns:
                 if t_col in df.columns:
-                    # 날짜와 시간을 합쳐서 pandas datetime 객체로 변환
-                    df['date'] = pd.to_datetime(df[d_col].astype(str) + ' ' + df[t_col].astype(str), errors='coerce')
+                    temp_date = pd.to_datetime(df[d_col].astype(str) + ' ' + df[t_col].astype(str), errors='coerce')
                 else:
-                    df['date'] = pd.to_datetime(df[d_col], errors='coerce')
-                break
+                    temp_date = pd.to_datetime(df[d_col], errors='coerce')
+                
+                valid_count = temp_date.notna().sum()
+                if valid_count > max_valid_dates:
+                    max_valid_dates = valid_count
+                    best_date_series = temp_date
+                
+                # 모든 행이 유효하면 즉시 중단 (최적화)
+                if valid_count == len(df):
+                    break
         
-        if 'date' in df.columns:
-            # 2. year 컬럼 추가
+        if best_date_series is not None:
+            df['date'] = best_date_series
             df['year'] = df['date'].dt.year
             
         return df
