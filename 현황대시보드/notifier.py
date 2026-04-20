@@ -72,61 +72,58 @@ def run_auto_check(df_proposal, df_download):
     
     print(f"[Notifier] 구간 분석 시작: {start_time} ~ {end_time} (Key: {interval_key})")
 
-    # 2. 대상 데이터 필터링 (구간 내 데이터 추출)
+    # 2. 대상 데이터 필터링 및 카테고리 태깅
     def filter_by_time(df):
         if df.empty or 'date' not in df.columns: return pd.DataFrame()
-        # 시/분/초가 포함된 date 컬럼으로 필터링
         return df[(df['date'] >= start_time) & (df['date'] <= end_time)]
 
-    f_p = filter_by_time(df_proposal)
-    f_d = filter_by_time(df_download)
-    
-    # 알림 대상 카테고리 필터링 (download 시트용)
-    if not f_d.empty:
-        cat_pattern = "|".join(config.ALERT_CATEGORIES)
-        f_d = f_d[f_d['경로 메뉴명'].astype(str).str.contains(cat_pattern, na=False)].copy()
-        f_d = f_d[['UserNo', '이름', '부서', '직급', '경로 메뉴명', 'date']]
-        f_d.rename(columns={'경로 메뉴명': '문서경로'}, inplace=True)
-    
-    if not f_p.empty:
-        # UserNo, 이름, 부서, 직급은 data.py의 join_master_info에서 처리됨
-        available_cols = [col for col in ['UserNo', '이름', '부서', '직급', '문서경로', 'date'] if col in f_p.columns]
-        f_p = f_p[available_cols]
+    def get_category_tag(path):
+        path_str = str(path)
+        for cat in config.ALERT_CATEGORIES:
+            if cat in path_str:
+                return cat
+        return "기타"
 
+    f_p = filter_by_time(df_proposal)
+    if not f_p.empty:
+        f_p['카테고리'] = "제안서"
+        f_p = f_p[['UserNo', '이름', '부서', '직급', '카테고리', 'date']]
+
+    f_d = filter_by_time(df_download)
+    if not f_d.empty:
+        f_d['카테고리'] = f_d['경로 메뉴명'].apply(get_category_tag)
+        # 알림 대상 카테고리만 필터링 (config.ALERT_CATEGORIES에 포함된 것만)
+        f_d = f_d[f_d['카테고리'].isin(config.ALERT_CATEGORIES)].copy()
+        f_d = f_d[['UserNo', '이름', '부서', '직급', '카테고리', 'date']]
+    
     # 3. 데이터 통합 및 유저별 집계
     all_activity = pd.concat([f_p, f_d])
     if all_activity.empty:
         print("[Notifier] 해당 구간에 분석할 로그가 없습니다.")
         return
 
-    agg = all_activity.groupby(['UserNo', '이름', '부서', '직급']).size().reset_index(name='총다운로드')
+    # 유저별/카테고리별 집계
+    cat_agg = all_activity.groupby(['UserNo', '이름', '부서', '직급', '카테고리']).size().reset_index(name='건수')
     
-    # 상세 카테고리 추출 로직 (가장 빈도가 높은 카테고리)
-    def get_top_category(user_no):
-        user_rows = all_activity[all_activity['UserNo'] == user_no]
-        if user_rows.empty: return "다운로드"
-        cat_counts = {}
-        for path in user_rows['문서경로'].astype(str):
-            matched = False
-            for cat in config.ALERT_CATEGORIES:
-                if cat in path:
-                    cat_counts[cat] = cat_counts.get(cat, 0) + 1
-                    matched = True
-                    break
-            if not matched:
-                cat_counts['기타'] = cat_counts.get('기타', 0) + 1
-        return max(cat_counts, key=cat_counts.get)
+    # 유저별 총합 계산
+    total_agg = cat_agg.groupby(['UserNo', '이름', '부서', '직급'])['건수'].sum().reset_index(name='총다운로드')
+    
+    # 상세 내역 문자열 조립 (예: 서포트 센터 17건 / 제안서 12건)
+    def build_detail_str(user_no):
+        user_rows = cat_agg[cat_agg['UserNo'] == user_no].sort_values('건수', ascending=False)
+        details = [f"{row['카테고리']} {row['건수']}건" for _, row in user_rows.iterrows()]
+        return " / ".join(details)
 
-    agg['상세카테고리'] = agg['UserNo'].apply(get_top_category)
+    total_agg['상세내역'] = total_agg['UserNo'].apply(build_detail_str)
     
-    # 4. 위험 인원 추출 (구간 내 10건 이상)
-    heavy_users = agg[agg['총다운로드'] >= config.NOTIFICATION_THRESHOLD].sort_values('총다운로드', ascending=False)
+    # 4. 위험 인원 추출 (총합이 임계치 이상인 경우)
+    heavy_users = total_agg[total_agg['총다운로드'] >= config.NOTIFICATION_THRESHOLD].sort_values('총다운로드', ascending=False)
     
     if heavy_users.empty:
         print(f"[Notifier] 기준치({config.NOTIFICATION_THRESHOLD}건) 초과 인원 없음")
         return
 
-    # 5. 중복 방지 필터링 (해당 구간에서 이미 알림을 보낸 이력 확인)
+    # 5. 중복 방지 및 발송 대상 확정
     records = get_notified_records().get(interval_key, {})
     
     new_risks = []
@@ -134,7 +131,6 @@ def run_auto_check(df_proposal, df_download):
         u_no = str(user['UserNo'])
         last_count = records.get(u_no, 0)
         
-        # 해당 구간 내에서 건수가 더 늘어난 경우에만 발송
         if user['총다운로드'] > last_count:
             new_risks.append(user)
             save_notified_record(u_no, int(user['총다운로드']), interval_key)
@@ -145,11 +141,14 @@ def run_auto_check(df_proposal, df_download):
 
     # 6. 이메일 발송
     new_risks_df = pd.DataFrame(new_risks)
-    rep_cat = new_risks_df['상세카테고리'].value_counts().idxmax()
-    if len(new_risks_df['상세카테고리'].unique()) > 1: rep_cat += " 외"
+    # 제목용 대표 카테고리 (가장 많이 발생한 유저의 최상위 카테고리)
+    top_user_no = new_risks_df.iloc[0]['UserNo']
+    rep_cat = cat_agg[cat_agg['UserNo'] == top_user_no].sort_values('건수', ascending=False).iloc[0]['카테고리']
+    if len(new_risks_df) > 1: rep_cat += " 외"
         
     date_suffix = start_time.strftime('%Y%m%d')
     subject = f"[EZ데이터허브] {rep_cat} 다운로드 횟수 초과 안내_{date_suffix}"
     
+    # email_utils로 새롭게 구성된 상세내역 전달
     html = email_utils.build_risk_alert_html(new_risks_df, config.NOTIFICATION_THRESHOLD)
     email_utils.send_email(subject, html)

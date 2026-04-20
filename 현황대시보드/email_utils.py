@@ -40,8 +40,8 @@ def build_risk_alert_html(risk_df, threshold):
     for _, row in risk_df.iterrows():
         items_html += f"""
         <div style='margin-bottom: 20px; padding: 15px; border: 1px solid #e2e8f0; border-radius: 8px;'>
-            <p style='margin: 5px 0;'><b>직원 안내 :</b> {row['이름']}, ({row['부서']}/{row['직급']})</p>
-            <p style='margin: 5px 0;'><b>다운로드 초과 내용 :</b> {row['상세카테고리']} {row['총다운로드']}건</p>
+            <p style='margin: 5px 0;'><b>직원 안내 :</b> {row['이름']}({row['부서']}/{row['직급']})</p>
+            <p style='margin: 5px 0;'><b>다운로드 초과 내용 :</b> {row['상세내역']}</p>
         </div>
         """
     
