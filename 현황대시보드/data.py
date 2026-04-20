@@ -223,6 +223,7 @@ def map_all(df_users, df_login, df_download, df_proposal):
             
             row['이름'] = row.get('임직원명', "")
             row['부서'] = str(dept_val).strip() if not pd.isna(dept_val) else ""
+            row['사업부'] = str(div_val).strip() if not pd.isna(div_val) else "정보미등록"
             row['직급'] = str(row.get(rank_col, "")).strip()
             return row
 
@@ -254,13 +255,16 @@ def map_all(df_users, df_login, df_download, df_proposal):
             if pd.isna(dept_val) or str(dept_val).strip() == "":
                 dept_val = row.get(div_col)
             
+            # 값 정의 (사용 전 상단으로 이동)
+            hq_val = str(row.get(hq_col, "")).strip()
+            div_val = str(row.get(div_col, "")).strip()
+
             row['이름'] = row.get('임직원명', "")
             row['부서'] = str(dept_val).strip() if not pd.isna(dept_val) else ""
+            row['사업부'] = str(div_val).strip() if not pd.isna(div_val) else "정보미등록"
             row['직급'] = str(row.get(rank_col, "")).strip()
             
             # [추가] 부서별 현황 페이지용 그룹핑
-            hq_val = str(row.get(hq_col, "")).strip()
-            div_val = str(row.get(div_col, "")).strip()
             if hq_val in config.DEPT_SHOW_AS_HQ:
                 row['부서_그룹'] = hq_val
             elif div_val:

@@ -128,8 +128,8 @@ with col_mid_right:
 st.markdown("<div style='height: 5px;'></div>", unsafe_allow_html=True)
 
 # 데이터 준비 (분모를 f_u 기준으로 통일)
-active_p = f_proposal[['UserNo', '부서', '직급']]
-active_d = f_download[f_download['경로 메뉴명'].astype(str).str.contains('프로젝트|운영자료|서포트', na=False)][['UserNo', '부서', '직급']]
+active_p = f_proposal[['UserNo', '부서', '사업부', '직급']]
+active_d = f_download[f_download['경로 메뉴명'].astype(str).str.contains('프로젝트|운영자료|서포트', na=False)][['UserNo', '부서', '사업부', '직급']]
 active_users_all = pd.concat([active_p, active_d]).drop_duplicates(subset=['UserNo'])
 
 # 1. 부서별 로그인 TOP5
@@ -141,13 +141,13 @@ login_dept_top5 = (
     .reset_index(drop=True)
 )
 
-# 2. 부서별 사용률 TOP5
-active_by_dept = active_users_all.groupby('부서')['UserNo'].nunique().reset_index(name='순사용자')
-total_users_dept = f_u.groupby('부서')['UserNo'].nunique().reset_index(name='전체인원')
-usage_dept = pd.merge(total_users_dept, active_by_dept, on='부서', how='left').fillna(0)
-usage_dept['사용률(%)'] = (usage_dept['순사용자'] / usage_dept['전체인원'] * 100).round(1)
-usage_dept_top5 = (
-    usage_dept[['부서', '전체인원', '순사용자', '사용률(%)']]
+# 2. 사업부별 사용률 TOP5 (변경: 부서 -> 사업부)
+active_by_div = active_users_all.groupby('사업부')['UserNo'].nunique().reset_index(name='순사용자')
+total_users_div = f_u.groupby('사업부')['UserNo'].nunique().reset_index(name='전체인원')
+usage_div = pd.merge(total_users_div, active_by_div, on='사업부', how='left').fillna(0)
+usage_div['사용률(%)'] = (usage_div['순사용자'] / usage_div['전체인원'] * 100).round(1)
+usage_div_top5 = (
+    usage_div[['사업부', '전체인원', '순사용자', '사용률(%)']]
     .sort_values('사용률(%)', ascending=False)
     .head(5)
     .reset_index(drop=True)
@@ -181,8 +181,8 @@ with col_t1:
     st.dataframe(login_dept_top5, use_container_width=True, hide_index=True, height=table_height)
 
 with col_t2:
-    st.markdown("##### 부서별 사용률 TOP5")
-    st.dataframe(usage_dept_top5, use_container_width=True, hide_index=True, height=table_height)
+    st.markdown("##### 사업부별 사용률 TOP5")
+    st.dataframe(usage_div_top5, use_container_width=True, hide_index=True, height=table_height)
 
 with col_t3:
     st.markdown("##### 직급별 로그인 현황")

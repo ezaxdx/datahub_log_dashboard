@@ -206,7 +206,7 @@ if not tl_data.empty:
             tl_display['윈도우시작'] = tl_display['윈도우시작'].dt.strftime('%Y-%m-%d %H:%M')
             tl_display['윈도우종료'] = tl_display['윈도우종료'].dt.strftime('%Y-%m-%d %H:%M')
 
-            cols = ['이름', '부서', '직급', config.COL_NAME_EMAIL, 
+            cols = ['UserNo', '이름', '부서', '직급', config.COL_NAME_EMAIL, 
                     f'{h_val}시간내_순다운로드수', '윈도우시작', '문서이름', '열람시간']
             st.dataframe(
                 tl_display[cols].sort_values([f'{h_val}시간내_순다운로드수', '열람시간'], ascending=[False, False]), 
