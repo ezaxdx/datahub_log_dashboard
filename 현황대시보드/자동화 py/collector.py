@@ -123,7 +123,7 @@ else:
         # 신규 데이터 필터
         df_dl["log_no"] = pd.to_numeric(df_dl["log_no"], errors="coerce")
         df_dl = df_dl.sort_values("log_no")
-        df_dl = df_dl[df_dl["log_no"] > last_dl_log]
+        df_dl = df_dl[df_dl["log_no"] > last_download_log]
 
         print("다운로드 신규 데이터 수:", len(df_dl))
 

@@ -146,7 +146,7 @@ def run_auto_check(df_proposal, df_download):
     rep_cat = cat_agg[cat_agg['UserNo'] == top_user_no].sort_values('건수', ascending=False).iloc[0]['카테고리']
     if len(new_risks_df) > 1: rep_cat += " 외"
         
-    date_suffix = start_time.strftime('%Y%m%d')
+    date_suffix = datetime.now().strftime('%Y%m%d')
     subject = f"[EZ데이터허브] {rep_cat} 다운로드 횟수 초과 안내_{date_suffix}"
     
     # email_utils로 새롭게 구성된 상세내역 전달
