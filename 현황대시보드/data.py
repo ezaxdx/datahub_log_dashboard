@@ -15,11 +15,22 @@ def load_all():
     """
     try:
         scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-        creds = Credentials.from_service_account_info(st.secrets["gcp_service_account"], scopes=scope)
+        
+        # 1. Streamlit Secrets 확인 (대시보드 실행 시)
+        if hasattr(st, "secrets") and "gcp_service_account" in st.secrets:
+            creds = Credentials.from_service_account_info(st.secrets["gcp_service_account"], scopes=scope)
+            sheet_url = st.secrets["gcp_sheet_url"]
+        else:
+            # 2. 로컬 JSON 키 파일 확인 (스케줄러 등 일반 실행 시)
+            # collector.py와 동일한 경로 사용
+            json_path = r"C:\김연아\@ AXDX팀\1. 로그인, 다운로드 대시보드 제작\@micedx1계정api키정보\ezdatahub-log-5a89069d212c.json"
+            creds = Credentials.from_service_account_file(json_path, scopes=scope)
+            sheet_url = "https://docs.google.com/spreadsheets/d/1N0UUF2Qroqbukd37WRgur2FpjzxEXLevT79EB_GutEk/edit?usp=sharing"
+        
         client = gspread.authorize(creds)
-        sh = client.open_by_url(st.secrets["gcp_sheet_url"])
+        sh = client.open_by_url(sheet_url)
     except Exception as e:
-        st.error(f"Google Sheets 연결 실패: {e}")
+        print(f"Google Sheets 연결 실패: {e}")
         return pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
 
     def get_df_safe(sheet_name):
@@ -274,10 +285,20 @@ def preprocess_all(df_users, df_login, df_download, df_proposal):
         if df.empty: return df
         df = df.copy()
         
-        # 1. 날짜 컬럼 통일
-        for date_col in ['등록일', '다운로드 일자', '로그인 일자']:
-            if date_col in df.columns:
-                df['date'] = pd.to_datetime(df[date_col], errors='coerce')
+        # 1. 날짜 및 시간 컬럼 통합 (정밀한 구간 필터링용)
+        date_time_pairs = [
+            ('다운로드 일자', '다운로드 시간'),
+            ('로그인 일자', '로그인 시간'),
+            ('등록일', '등록시간') # 제안서 등 기타 시트 대비
+        ]
+        
+        for d_col, t_col in date_time_pairs:
+            if d_col in df.columns:
+                if t_col in df.columns:
+                    # 날짜와 시간을 합쳐서 pandas datetime 객체로 변환
+                    df['date'] = pd.to_datetime(df[d_col].astype(str) + ' ' + df[t_col].astype(str), errors='coerce')
+                else:
+                    df['date'] = pd.to_datetime(df[d_col], errors='coerce')
                 break
         
         if 'date' in df.columns:
