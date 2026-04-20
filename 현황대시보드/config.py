@@ -34,13 +34,39 @@ DEFAULT_EXCLUDE_DEPTS = ["AXDX팀", "ICT융합개발본부"]
 DEFAULT_EXCLUDE_USERNO = ["곽은경_280"]
 
 # --- [이메일 알림 설정] ---
-# 발신용 SMTP 설정 (Gmail 기준 예시)
+# 발신용 SMTP 설정 (보안을 위해 .streamlit/secrets.toml 에서 로드)
 SMTP_CONFIG = {
     "host": "smtp.gmail.com",
     "port": 587,
-    "user": "ez.micedx1@gmail.com",       # 실제 발신 이메일 주소로 변경 필요
-    "password": "fkue rmqc syrh rjjw"                  # 16자리 앱 비밀번호 입력 필요
+    "user": "",
+    "password": ""
 }
+
+try:
+    # 1. Streamlit 환경인 경우 st.secrets 시도
+    import streamlit as st
+    if hasattr(st, "secrets") and "smtp" in st.secrets:
+        SMTP_CONFIG["host"] = st.secrets["smtp"].get("host", "smtp.gmail.com")
+        SMTP_CONFIG["port"] = st.secrets["smtp"].get("port", 587)
+        SMTP_CONFIG["user"] = st.secrets["smtp"].get("user", "")
+        SMTP_CONFIG["password"] = st.secrets["smtp"].get("password", "")
+    else:
+        raise Exception("Not in streamlit or no smtp secret")
+except Exception:
+    # 2. Streamlit 환경이 아니거나 secrets가 없는 경우 직접 TOML 파일 읽기 시도
+    try:
+        import toml
+        import os
+        secrets_path = os.path.join(".streamlit", "secrets.toml")
+        if os.path.exists(secrets_path):
+            secrets = toml.load(secrets_path)
+            if "smtp" in secrets:
+                SMTP_CONFIG["host"] = secrets["smtp"].get("host", "smtp.gmail.com")
+                SMTP_CONFIG["port"] = secrets["smtp"].get("port", 587)
+                SMTP_CONFIG["user"] = secrets["smtp"].get("user", "")
+                SMTP_CONFIG["password"] = secrets["smtp"].get("password", "")
+    except Exception:
+        pass
 
 # 알림 수신자 리스트 (회사 이메일 등 여러 명 가능)
 NOTIFICATION_RECIPIENTS = ["ekks55@ezpmp.co.kr","hyj@ezpmp.co.kr","k2cow0610@ezpmp.co.kr"]
