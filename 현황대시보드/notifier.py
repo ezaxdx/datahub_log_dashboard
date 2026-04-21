@@ -62,7 +62,7 @@ def run_auto_check(df_proposal, df_download):
     지정된 시간 구간 내의 모든 다운로드 기록을 분석하여 위험 인원을 감지하고 이메일을 발송합니다.
     """
     if df_proposal.empty and df_download.empty:
-        return
+        return {"status": "empty", "message": "분석할 데이터가 없습니다.", "count": 0}
 
     # 1. 분석 구간 설정 (사용자 요청: 오전 10시 / 오후 4시 기준)
     start_time, end_time = get_check_interval()
@@ -100,13 +100,16 @@ def run_auto_check(df_proposal, df_download):
     all_activity = pd.concat([f_p, f_d])
     if all_activity.empty:
         print("[Notifier] 해당 구간에 분석할 로그가 없습니다.")
-        return
+        return {"status": "empty", "message": "현재 구간에 발생한 로그가 없습니다.", "count": 0}
 
     # 유저별/카테고리별 집계
     cat_agg = all_activity.groupby(['UserNo', '이름', '부서', '직급', '카테고리']).size().reset_index(name='건수')
     
-    # 유저별 총합 계산
-    total_agg = cat_agg.groupby(['UserNo', '이름', '부서', '직급'])['건수'].sum().reset_index(name='총다운로드')
+    # 유저별 총합 및 개별 카테고리 최대건수 계산
+    user_agg = cat_agg.groupby(['UserNo', '이름', '부서', '직급']).agg(
+        총다운로드=('건수', 'sum'),
+        최대단일카테고리=('건수', 'max')
+    ).reset_index()
     
     # 상세 내역 문자열 조립 (예: 서포트 센터 17건 / 제안서 12건)
     def build_detail_str(user_no):
@@ -114,14 +117,14 @@ def run_auto_check(df_proposal, df_download):
         details = [f"{row['카테고리']} {row['건수']}건" for _, row in user_rows.iterrows()]
         return " / ".join(details)
 
-    total_agg['상세내역'] = total_agg['UserNo'].apply(build_detail_str)
+    user_agg['상세내역'] = user_agg['UserNo'].apply(build_detail_str)
     
-    # 4. 위험 인원 추출 (총합이 임계치 이상인 경우)
-    heavy_users = total_agg[total_agg['총다운로드'] >= config.NOTIFICATION_THRESHOLD].sort_values('총다운로드', ascending=False)
+    # 4. 위험 인원 추출 (개별 카테고리 최대건수가 임계치 이상인 경우)
+    heavy_users = user_agg[user_agg['최대단일카테고리'] >= config.NOTIFICATION_THRESHOLD].sort_values('총다운로드', ascending=False)
     
     if heavy_users.empty:
-        print(f"[Notifier] 기준치({config.NOTIFICATION_THRESHOLD}건) 초과 인원 없음")
-        return
+        print(f"[Notifier] 카테고리별 단일 기준치({config.NOTIFICATION_THRESHOLD}건) 초과 인원 없음")
+        return {"status": "ok", "message": "✅ 알림 기준(단일 항목 10건)을 초과한 인원이 없습니다.", "count": 0}
 
     # 5. 중복 방지 및 발송 대상 확정
     records = get_notified_records().get(interval_key, {})
@@ -131,13 +134,14 @@ def run_auto_check(df_proposal, df_download):
         u_no = str(user['UserNo'])
         last_count = records.get(u_no, 0)
         
+        # 총합 기준으로 이전 기록보다 증가했는지 확인하여 중복 방지 유지
         if user['총다운로드'] > last_count:
             new_risks.append(user)
             save_notified_record(u_no, int(user['총다운로드']), interval_key)
 
     if not new_risks:
         print("[Notifier] 신규 알림 대상 없음 (동일 구간 기발송 건)")
-        return
+        return {"status": "ok", "message": "✅ 이미 메일이 발송되었으며, 신규 초과자가 없습니다.", "count": 0}
 
     # 6. 이메일 발송
     new_risks_df = pd.DataFrame(new_risks)
@@ -152,3 +156,5 @@ def run_auto_check(df_proposal, df_download):
     # email_utils로 새롭게 구성된 상세내역 전달
     html = email_utils.build_risk_alert_html(new_risks_df, config.NOTIFICATION_THRESHOLD)
     email_utils.send_email(subject, html)
+    
+    return {"status": "alert", "message": f"🚨 위험 인원 {len(new_risks_df)}명 감지! 담당자에게 이메일 알림이 발송되었습니다.", "count": len(new_risks_df)}
