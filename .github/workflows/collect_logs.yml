@@ -1,0 +1,31 @@
+name: Daily Log Collector
+
+on:
+  schedule:
+    - cron: cron: '0 23 * * 0-4'  # 월-금 한국시간 오전 9시 (UTC 23시)
+  workflow_dispatch:         # 수동 실행 가능
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install requests pandas gspread google-auth openpyxl urllib3
+
+      - name: Run collector
+        env:
+          PHPSESSID: ${{ secrets.PHPSESSID }}
+          GCP_SERVICE_ACCOUNT_JSON: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}
+          SPREADSHEET_URL: ${{ secrets.SPREADSHEET_URL }}
+        run: |
+          python 현황대시보드/collector.py

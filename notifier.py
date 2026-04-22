@@ -1,0 +1,160 @@
+import pandas as pd
+import os
+import json
+from datetime import datetime, timedelta
+import config
+import email_utils
+
+# 알림 기록 파일 경로
+NOTIFIED_RECORDS_FILE = "checkpoints/notified_records.json"
+
+def get_check_interval():
+    """
+    현재 시각을 기준으로 분석할 시작 시각을 계산합니다.
+    - 10:00 ~ 15:59 사이 실행 시: 오늘 10:01부터 현재까지
+    - 16:00 ~ 익일 09:59 사이 실행 시: 최근 오후 16:01부터 현재까지
+    """
+    now = datetime.now()
+    curr_hour = now.hour
+    
+    if 10 <= curr_hour < 16:
+        # 오전 10시 이후 ~ 오후 4시 이전
+        start_time = now.replace(hour=10, minute=1, second=0, microsecond=0)
+    elif curr_hour >= 16:
+        # 오늘 오후 4시 이후
+        start_time = now.replace(hour=16, minute=1, second=0, microsecond=0)
+    else:
+        # 오늘 오전 10시 이전 (어제 오후 4시부터 시작)
+        start_time = (now - timedelta(days=1)).replace(hour=16, minute=1, second=0, microsecond=0)
+        
+    return start_time, now
+
+def get_notified_records():
+    """알림 기록을 로드합니다."""
+    if os.path.exists(NOTIFIED_RECORDS_FILE):
+        try:
+            with open(NOTIFIED_RECORDS_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except:
+            return {}
+    return {}
+
+def save_notified_record(user_no, count, interval_key):
+    """알림 기록을 저장합니다. (구간 키와 함께)"""
+    records = get_notified_records()
+    
+    if interval_key not in records:
+        records[interval_key] = {}
+    
+    records[interval_key][user_no] = count
+    
+    # 최근 기록만 유지 (파일 크기 관리용)
+    if len(records) > 20:
+        sorted_keys = sorted(records.keys())
+        for k in sorted_keys[:-20]:
+            del records[k]
+            
+    with open(NOTIFIED_RECORDS_FILE, "w", encoding="utf-8") as f:
+        json.dump(records, f, ensure_ascii=False, indent=2)
+
+def run_auto_check(df_proposal, df_download):
+    """
+    지정된 시간 구간 내의 모든 다운로드 기록을 분석하여 위험 인원을 감지하고 이메일을 발송합니다.
+    """
+    if df_proposal.empty and df_download.empty:
+        return {"status": "empty", "message": "분석할 데이터가 없습니다.", "count": 0}
+
+    # 1. 분석 구간 설정 (사용자 요청: 오전 10시 / 오후 4시 기준)
+    start_time, end_time = get_check_interval()
+    # 구간 구분을 위한 키 생성 (예: 2024-04-20_10, 2024-04-20_16)
+    interval_hour = 10 if start_time.hour == 10 else 16
+    interval_key = f"{start_time.strftime('%Y-%m-%d')}_{interval_hour}"
+    
+    print(f"[Notifier] 구간 분석 시작: {start_time} ~ {end_time} (Key: {interval_key})")
+
+    # 2. 대상 데이터 필터링 및 카테고리 태깅
+    def filter_by_time(df):
+        if df.empty or 'date' not in df.columns: return pd.DataFrame()
+        return df[(df['date'] >= start_time) & (df['date'] <= end_time)]
+
+    def get_category_tag(path):
+        path_str = str(path)
+        for cat in config.ALERT_CATEGORIES:
+            if cat in path_str:
+                return cat
+        return "기타"
+
+    f_p = filter_by_time(df_proposal)
+    if not f_p.empty:
+        f_p['카테고리'] = "제안서"
+        f_p = f_p[['UserNo', '이름', '부서', '직급', '카테고리', 'date']]
+
+    f_d = filter_by_time(df_download)
+    if not f_d.empty:
+        f_d['카테고리'] = f_d['경로 메뉴명'].apply(get_category_tag)
+        # 알림 대상 카테고리만 필터링 (config.ALERT_CATEGORIES에 포함된 것만)
+        f_d = f_d[f_d['카테고리'].isin(config.ALERT_CATEGORIES)].copy()
+        f_d = f_d[['UserNo', '이름', '부서', '직급', '카테고리', 'date']]
+    
+    # 3. 데이터 통합 및 유저별 집계
+    all_activity = pd.concat([f_p, f_d])
+    if all_activity.empty:
+        print("[Notifier] 해당 구간에 분석할 로그가 없습니다.")
+        return {"status": "empty", "message": "현재 구간에 발생한 로그가 없습니다.", "count": 0}
+
+    # 유저별/카테고리별 집계
+    cat_agg = all_activity.groupby(['UserNo', '이름', '부서', '직급', '카테고리']).size().reset_index(name='건수')
+    
+    # 유저별 총합 및 개별 카테고리 최대건수 계산
+    user_agg = cat_agg.groupby(['UserNo', '이름', '부서', '직급']).agg(
+        총다운로드=('건수', 'sum'),
+        최대단일카테고리=('건수', 'max')
+    ).reset_index()
+    
+    # 상세 내역 문자열 조립 (예: 서포트 센터 17건 / 제안서 12건)
+    def build_detail_str(user_no):
+        user_rows = cat_agg[cat_agg['UserNo'] == user_no].sort_values('건수', ascending=False)
+        details = [f"{row['카테고리']} {row['건수']}건" for _, row in user_rows.iterrows()]
+        return " / ".join(details)
+
+    user_agg['상세내역'] = user_agg['UserNo'].apply(build_detail_str)
+    
+    # 4. 위험 인원 추출 (개별 카테고리 최대건수가 임계치 이상인 경우)
+    heavy_users = user_agg[user_agg['최대단일카테고리'] >= config.NOTIFICATION_THRESHOLD].sort_values('총다운로드', ascending=False)
+    
+    if heavy_users.empty:
+        print(f"[Notifier] 카테고리별 단일 기준치({config.NOTIFICATION_THRESHOLD}건) 초과 인원 없음")
+        return {"status": "ok", "message": "✅ 알림 기준(단일 항목 10건)을 초과한 인원이 없습니다.", "count": 0}
+
+    # 5. 중복 방지 및 발송 대상 확정
+    records = get_notified_records().get(interval_key, {})
+    
+    new_risks = []
+    for _, user in heavy_users.iterrows():
+        u_no = str(user['UserNo'])
+        last_count = records.get(u_no, 0)
+        
+        # 총합 기준으로 이전 기록보다 증가했는지 확인하여 중복 방지 유지
+        if user['총다운로드'] > last_count:
+            new_risks.append(user)
+            save_notified_record(u_no, int(user['총다운로드']), interval_key)
+
+    if not new_risks:
+        print("[Notifier] 신규 알림 대상 없음 (동일 구간 기발송 건)")
+        return {"status": "ok", "message": "✅ 이미 메일이 발송되었으며, 신규 초과자가 없습니다.", "count": 0}
+
+    # 6. 이메일 발송
+    new_risks_df = pd.DataFrame(new_risks)
+    # 제목용 대표 카테고리 (가장 많이 발생한 유저의 최상위 카테고리)
+    top_user_no = new_risks_df.iloc[0]['UserNo']
+    rep_cat = cat_agg[cat_agg['UserNo'] == top_user_no].sort_values('건수', ascending=False).iloc[0]['카테고리']
+    if len(new_risks_df) > 1: rep_cat += " 외"
+        
+    date_suffix = datetime.now().strftime('%Y%m%d')
+    subject = f"[EZ데이터허브] {rep_cat} 다운로드 횟수 초과 안내_{date_suffix}"
+    
+    # email_utils로 새롭게 구성된 상세내역 전달
+    html = email_utils.build_risk_alert_html(new_risks_df, config.NOTIFICATION_THRESHOLD)
+    email_utils.send_email(subject, html)
+    
+    return {"status": "alert", "message": f"🚨 위험 인원 {len(new_risks_df)}명 감지! 담당자에게 이메일 알림이 발송되었습니다.", "count": len(new_risks_df)}
