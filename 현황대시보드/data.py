@@ -21,11 +21,17 @@ def load_all():
             creds = Credentials.from_service_account_info(st.secrets["gcp_service_account"], scopes=scope)
             sheet_url = st.secrets["gcp_sheet_url"]
         else:
-            # 2. 로컬 JSON 키 파일 확인 (스케줄러 등 일반 실행 시)
-            # collector.py와 동일한 경로 사용
-            json_path = r"C:\김연아\@ AXDX팀\1. 로그인, 다운로드 대시보드 제작\@micedx1계정api키정보\ezdatahub-log-5a89069d212c.json"
-            creds = Credentials.from_service_account_file(json_path, scopes=scope)
-            sheet_url = "https://docs.google.com/spreadsheets/d/1N0UUF2Qroqbukd37WRgur2FpjzxEXLevT79EB_GutEk/edit?usp=sharing"
+            # 2. 로컬 secrets.toml 직접 로드 (스케줄러/배치 등 일반 실행 시)
+            import os
+            import tomllib
+            secrets_path = os.path.join(".streamlit", "secrets.toml")
+            if not os.path.exists(secrets_path):
+                raise FileNotFoundError(f"인증 정보 파일을 찾을 수 없습니다: {secrets_path}")
+                
+            with open(secrets_path, "rb") as f:
+                secrets = tomllib.load(f)
+                creds = Credentials.from_service_account_info(secrets["gcp_service_account"], scopes=scope)
+                sheet_url = secrets.get("gcp_sheet_url", "https://docs.google.com/spreadsheets/d/1N0UUF2Qroqbukd37WRgur2FpjzxEXLevT79EB_GutEk/edit?usp=sharing")
         
         client = gspread.authorize(creds)
         sh = client.open_by_url(sheet_url)

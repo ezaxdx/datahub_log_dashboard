@@ -47,19 +47,10 @@ def load_credentials():
                 print("secrets.toml에서 인증 정보를 로드했습니다.")
                 return (
                     Credentials.from_service_account_info(secrets["gcp_service_account"], scopes=scope),
-                    secrets.get("gcp_sheet_url")
+                    secrets.get("gcp_sheet_url", "https://docs.google.com/spreadsheets/d/1N0UUF2Qroqbukd37WRgur2FpjzxEXLevT79EB_GutEk/edit?usp=sharing")
                 )
     
-    # Fallback: 기존 로컬 JSON 키 파일 (만약의 경우 대비)
-    json_path = r"C:\김연아\@ AXDX팀\1. 로그인, 다운로드 대시보드 제작\@micedx1계정api키정보\ezdatahub-log-5a89069d212c.json"
-    if os.path.exists(json_path):
-        print("로컬 JSON 파일에서 인증 정보를 로드했습니다.")
-        return (
-            Credentials.from_service_account_file(json_path, scopes=scope),
-            "https://docs.google.com/spreadsheets/d/1N0UUF2Qroqbukd37WRgur2FpjzxEXLevT79EB_GutEk/edit?usp=sharing"
-        )
-    
-    raise FileNotFoundError("인증 정보(secrets.toml 또는 JSON 키)를 찾을 수 없습니다.")
+    raise FileNotFoundError(f"인증 정보(.streamlit/secrets.toml)를 찾을 수 없습니다. (확인 경로: {os.path.abspath(secrets_path)})")
 
 scope = [
     "https://www.googleapis.com/auth/spreadsheets",
