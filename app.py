@@ -171,10 +171,22 @@ st.sidebar.markdown("---")
 
 # D. 상세 필터 (익스팬더)
 with st.sidebar.expander("🔍 상세 필터 (조회 기준)", expanded=False):
-    date_preset = st.radio("날짜 선택", ["최근 1주일", "오늘", "전체", "직접 지정"], index=0, horizontal=True)
+    # 날짜 프리셋 유지 로직
+    presets = ["최근 1주일", "오늘", "전체", "직접 지정"]
+    saved_preset = st.session_state.get('date_preset', "최근 1주일")
+    try:
+        preset_index = presets.index(saved_preset)
+    except:
+        preset_index = 0
+        
+    date_preset = st.radio("날짜 선택", presets, index=preset_index, horizontal=True)
+    
     date_range = None
     if date_preset == "직접 지정":
-        date_range = st.date_input("조회 기간", [today - timedelta(days=7), today])
+        # 직접 지정 날짜 유지 로직
+        saved_range = st.session_state.get('date_range', [today - timedelta(days=7), today])
+        # date_input은 리스트나 튜플 형태를 기대함
+        date_range = st.date_input("조회 기간", saved_range)
     elif date_preset == "최근 1주일":
         date_range = [today - timedelta(days=7), today]
     elif date_preset == "오늘":
@@ -197,17 +209,27 @@ with st.sidebar.expander("🔍 상세 필터 (조회 기준)", expanded=False):
         exclude_names = df_u[df_u['UserNo'].isin(exclude_userno)]['_ui_dept'].tolist()
         exclude_depts = config.DEFAULT_EXCLUDE_DEPTS + exclude_names
         
+        # 기본 선택될 부서 리스트 먼저 정의
         default_depts = [d for d in all_depts if d not in exclude_depts]
+
+        # 부서 선택 유지 로직
+        saved_sel_dept = st.session_state.get('sel_dept', default_depts)
+        # 선택된 부서가 전체 리스트에 여전히 존재하는지 확인 (방어 로직)
+        valid_sel_dept = [d for d in saved_sel_dept if d in all_depts]
 
         col_dept1, col_dept2 = st.columns([3, 1])
         with col_dept1:
-            sel_dept = st.multiselect("부서명", options=all_depts, default=default_depts)
+            sel_dept = st.multiselect("부서명", options=all_depts, default=valid_sel_dept)
         with col_dept2:
             if st.button("전체", key="dept_select_all"):
                 sel_dept = all_depts
+                st.rerun() # 전체 선택 시 즉시 반영
         
         st.session_state['sel_dept'] = sel_dept
-        st.session_state['sel_rank'] = st.multiselect("직급 그룹", options=['실무자(사원/대리)', '관리자(차장↑)', '임원'])
+        
+        # 직급 그룹 유지 로직
+        saved_sel_rank = st.session_state.get('sel_rank', [])
+        st.session_state['sel_rank'] = st.multiselect("직급 그룹", options=['실무자(사원/대리)', '관리자(차장↑)', '임원'], default=saved_sel_rank)
 
 # --- 3. 선택된 페이지 실행 ---
 current_page_info = pages[st.session_state['current_page']]
