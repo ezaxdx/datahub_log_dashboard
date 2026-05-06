@@ -16,10 +16,10 @@ def render_metric_card(label, value, color="#6366f1"):
 
 # --- 1. 페이지 헤더 ---
 st.markdown(f"""
-<div class="page-header" style="padding: 12px 24px; margin-bottom: 16px;">
-    <div style="font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px; opacity: 0.8;">Analysis</div>
-    <div style="font-size: 24px; font-weight: 800; margin-bottom: 4px;"> {config.CURRENT_YEAR} EZ데이터허브 부서 및 직급별 현황 대시보드</div>
-    <div style="font-size: 13px; opacity: 0.85; font-weight: 400;"> 사용자의 활동 내역을 부서와 직급별로 모니터링하고 인원 대비 활용도를 확인합니다.</div>
+<div class="page-header">
+    <div style="font-size: 10px; font-weight: 700; color: #6366f1; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 8px; font-family: 'Inter';">Organizational Insights</div>
+    <div style="font-size: 28px; font-weight: 800; color: #1e293b; margin-bottom: 4px; font-family: 'Manrope';">{config.CURRENT_YEAR} 부서 및 직급별 활용 현황</div>
+    <div style="font-size: 14px; color: #64748b; font-weight: 400; font-family: 'Inter';">부서와 직급별 인원 대비 활용도를 심층 분석합니다.</div>
 </div>
 """, unsafe_allow_html=True)
 
@@ -83,7 +83,7 @@ st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
 col_dept_title, col_log_sel = st.columns([3, 1])
 
 with col_dept_title:
-    st.markdown("##### 🏢 부서별 사용 현황")
+    st.markdown('<div class="headline" style="font-size: 20px; font-weight: 800; color: #1e293b;">🏢 부서별 사용 현황</div>', unsafe_allow_html=True)
 
 with col_log_sel:
     target_log_type = st.selectbox(
@@ -143,7 +143,7 @@ fig_dept = px.bar(
     x='부서_그룹', 
     y='횟수', 
     color='횟수',
-    color_continuous_scale='Blues',
+    color_continuous_scale=['#f1f5f9', '#0f172a'],
     text='사용률',
     custom_data=['전체인원', '인원대비활동', '순사용자', '사용률']
 )
@@ -162,11 +162,13 @@ fig_dept.update_xaxes(tickangle=-45, tickfont=dict(size=10))
 
 fig_dept.update_layout(
     height=310,
-    margin=dict(l=10, r=10, t=10, b=80),
+    margin=dict(l=10, r=10, t=30, b=80),
     xaxis_title=None, yaxis_title=None,
     showlegend=False,
     coloraxis_showscale=False,
-    paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)'
+    paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+    xaxis=dict(showgrid=False, tickfont=dict(size=10, color="#64748b", family='Inter')),
+    yaxis=dict(showgrid=True, gridcolor='#f1f5f9', tickfont=dict(size=10, color="#64748b", family='Inter'))
 )
 st.plotly_chart(fig_dept, use_container_width=True)
 
@@ -197,14 +199,14 @@ if not rank_data.empty:
 col_rank_main, col_rank_sub = st.columns([2, 1])
 
 with col_rank_main:
-    st.markdown("##### 🎓 직급별 사용 현황 (임원 제외)")
+    st.markdown('<div class="headline" style="font-size: 18px; font-weight: 700; color: #1e293b; margin-bottom: 16px;">🎓 직급별 사용 현황 (임원 제외)</div>', unsafe_allow_html=True)
     if not rank_data.empty:
         fig_rank = px.bar(
             rank_chart_data,
             x='직급',
             y='횟수',
             color='횟수',
-            color_continuous_scale='Greens',
+            color_continuous_scale=['#f1f5f9', '#0f172a'],
             text='사용률',
             custom_data=['전체인원', '사용률']
         )
@@ -228,14 +230,16 @@ with col_rank_main:
             xaxis_title=None, yaxis_title=None,
             showlegend=False,
             coloraxis_showscale=False,
-            paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)'
+            paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+            xaxis=dict(showgrid=False, tickfont=dict(size=10, color="#64748b", family='Inter')),
+            yaxis=dict(showgrid=True, gridcolor='#f1f5f9', tickfont=dict(size=10, color="#64748b", family='Inter'))
         )
         st.plotly_chart(fig_rank, use_container_width=True)
     else:
         st.info("임원을 제외한 직급의 활동 데이터가 없습니다.")
 
 with col_rank_sub:
-    st.markdown("##### 📊 실무자/관리자 비중")
+    st.markdown('<div class="headline" style="font-size: 18px; font-weight: 700; color: #1e293b; margin-bottom: 16px;">📊 실무자/관리자 비중</div>', unsafe_allow_html=True)
     # 임원 제외 활동량 합계
     summary_data = active_df[active_df['직급그룹'].isin(['실무자(사원/대리)', '관리자(차장↑)'])]
     if not summary_data.empty:
@@ -261,7 +265,7 @@ with col_rank_sub:
 st.markdown("<hr style='margin: 8px 0; border: none; border-top: 1px solid #eee;'>", unsafe_allow_html=True)
 
 # --- 7. 섹션 3: 인원표 ---
-st.markdown("##### 👥 부서/직급별 인원 현황")
+st.markdown('<div class="headline" style="font-size: 20px; font-weight: 800; color: #1e293b; margin-top: 32px; margin-bottom: 24px;">👥 부서/직급별 인원 현황</div>', unsafe_allow_html=True)
 # df_u 기준 (전체 임직원 마스터)
 # 부서_그룹 vs 직급
 xtab = pd.crosstab(df_u['부서_그룹'], df_u['직급'])

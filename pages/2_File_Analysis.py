@@ -17,10 +17,10 @@ def render_metric_card(label, value, color="#6366f1"):
 
 # --- [Page Header] ---
 st.markdown(f"""
-<div class="page-header" style="padding: 12px 24px; margin-bottom: 16px;">
-    <div style="font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px; opacity: 0.8;">Analysis</div>
-    <div style="font-size: 24px; font-weight: 800; margin-bottom: 4px;"> {config.CURRENT_YEAR} EZ데이터허브 파일 다운로드 현황 대시보드</div>
-    <div style="font-size: 13px; opacity: 0.85; font-weight: 400;"> 사용자의 활동 내역 및 파일 다운로드 현황을 확인할 수 있습니다.</div>
+<div class="page-header">
+    <div style="font-size: 10px; font-weight: 700; color: #6366f1; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 8px; font-family: 'Inter';">Data Deep-dive</div>
+    <div style="font-size: 28px; font-weight: 800; color: #1e293b; margin-bottom: 4px; font-family: 'Manrope';">{config.CURRENT_YEAR} EZ데이터허브 파일 다운로드 현황</div>
+    <div style="font-size: 14px; color: #64748b; font-weight: 400; font-family: 'Inter';">파일 다운로드 및 직원별 활동 내역을 심층 분석합니다.</div>
 </div>
 """, unsafe_allow_html=True)
 
@@ -111,7 +111,7 @@ for c in count_cols:
     df_user_activity[c] = df_user_activity[c].astype(int)
 
 with col_s1_left:
-    st.markdown("##### 👤 직원별 활동 상세내역")
+    st.markdown('<div class="headline" style="font-size: 18px; font-weight: 700; color: #1e293b; margin-bottom: 16px;">👤 직원별 활동 상세내역</div>', unsafe_allow_html=True)
     # 조건부 서식 적용 (변경: 제안서 다운로드 컬럼에만 빨간색 표시)
     def highlight_proposal(val):
         color = '#ef4444' if isinstance(val, (int, float)) and val >= warning_threshold else ''
@@ -134,7 +134,7 @@ with col_s1_right:
     # 세션 상태 업데이트 (페이지 간 공유 및 유지 용도)
     st.session_state['warning_threshold'] = warning_threshold
 
-    st.markdown("##### 🚨 제안서 다운로드 현황")
+    st.markdown('<div class="headline" style="font-size: 18px; font-weight: 700; color: #1e293b; margin-bottom: 16px;">🚨 제안서 다운로드 현황</div>', unsafe_allow_html=True)
     
     heavy_users = df_user_activity[df_user_activity['제안서다운로드'] >= warning_threshold].copy()
     st.markdown(f"<div style='font-size: 12px; margin-bottom: 8px;'>현재 필터 조건에서 총 <b style='color: #ef4444;'>{len(heavy_users)}</b>명의 사용자가 기준치({warning_threshold}건)를 초과했습니다.</div>", unsafe_allow_html=True)
@@ -153,7 +153,7 @@ st.markdown("<div style='height: 20px;'></div>", unsafe_allow_html=True)
 # 헤더와 필터를 한 행에 배치하여 우측 정렬 효과
 col_t_title, col_t_filter = st.columns([3, 1])
 with col_t_title:
-    st.markdown("##### 🕒 다운로드 타임라인")
+    st.markdown('<div class="headline" style="font-size: 18px; font-weight: 700; color: #1e293b; margin-bottom: 16px;">🕒 다운로드 타임라인</div>', unsafe_allow_html=True)
 with col_t_filter:
     # 시간 단위를 드롭다운(selectbox)으로 설정 (변경: 1시간 ~ 24시간)
     time_options = ["전체 로그"] + [f"{i}시간" for i in range(1, 25)]
@@ -228,7 +228,7 @@ else:
 st.markdown("<div style='height: 30px;'></div>", unsafe_allow_html=True)
 
 # --- 6. 섹션 3: 다운로드 현황 (Top 7 / Top 10) ---
-st.markdown("##### 📊 다운로드 현황")
+st.markdown('<div class="headline" style="font-size: 20px; font-weight: 800; color: #1e293b; margin-top: 32px; margin-bottom: 24px;">📊 카테고리별 다운로드 TOP 10</div>', unsafe_allow_html=True)
 c1, c2, c3, c4 = st.columns(4)
 table_height = 280  # 높이 동일하게 조절
 

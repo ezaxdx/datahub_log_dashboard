@@ -6,20 +6,21 @@ from datetime import datetime, timedelta
 import config
 
 # --- [UI Style Helper: Metrics] ---
-def render_metric_card(label, value, color="#6366f1"):
-    st.markdown(f"""
-    <div class="metric-card" style="text-align: center; border-left: 4px solid {color}; padding-left: 10px;">
-        <div style="color: #64748b; font-size: 11px; font-weight: 600; text-transform: uppercase;">{label}</div>
-        <div style="color: #1e293b; font-size: 20px; font-weight: 800;">{value}</div>
-    </div>
-    """, unsafe_allow_html=True)
+def render_metric_card(label, value, delta=None):
+    delta_html = ""
+    if delta:
+        d_val, d_color = delta
+        delta_html = f'<div style="font-size: 11px; font-weight: 700; color: {d_color};">{d_val}</div>'
+    
+    html = f'<div class="metric-card"><div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;"><div style="color: #64748b; font-size: 13px; font-weight: 700; text-transform: uppercase; font-family: \'Inter\';">{label}</div>{delta_html}</div><div style="color: #1e293b; font-size: 28px; font-weight: 800; font-family: \'Manrope\';">{value}</div></div>'
+    st.markdown(html, unsafe_allow_html=True)
 
-# --- [Page Header: Original] ---
+# --- [Page Header] ---
 st.markdown(f"""
-<div class="page-header" style="padding: 12px 24px; margin-bottom: 16px;">
-    <div style="font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px; opacity: 0.8;">Overview</div>
-    <div style="font-size: 24px; font-weight: 800; margin-bottom: 4px;"> {config.CURRENT_YEAR} EZ데이터허브 로그 분석 대시보드</div>
-    <div style="font-size: 13px; opacity: 0.85; font-weight: 400;"> 사용자의 전반적인 사용량 및 활동 현황을 모니터링합니다. </div>
+<div class="page-header">
+    <div style="font-size: 10px; font-weight: 700; color: #6366f1; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 8px; font-family: 'Inter';">Business Intelligence</div>
+    <div style="font-size: 28px; font-weight: 800; color: #1e293b; margin-bottom: 4px; font-family: 'Manrope';">{config.CURRENT_YEAR} EZ데이터허브 로그 분석 대시보드</div>
+    <div style="font-size: 14px; color: #64748b; font-weight: 400; font-family: 'Inter';">사용자의 전반적인 사용량 및 활동 현황을 실시간으로 모니터링합니다.</div>
 </div>
 """, unsafe_allow_html=True)
 
@@ -37,33 +38,64 @@ sel_rank = st.session_state.get('sel_rank', [])
 warning_threshold = st.session_state.get('warning_threshold', 10)
 
 # --- 3. 데이터 필터링 함수 ---
-def filter_data(df):
+def get_filter_dates():
+    # 현재 조회 기간과 이전 비교 기간의 시작/종료일 반환
+    today_dt = datetime.now().date()
+    curr_start, curr_end = None, None
+    prev_start, prev_end = None, None
+    
+    if date_preset == "오늘":
+        curr_start = curr_end = today_dt
+        prev_start = prev_end = today_dt - timedelta(days=1)
+    elif date_preset == "최근 1주일":
+        curr_end = today_dt
+        curr_start = today_dt - timedelta(days=7)
+        prev_end = curr_start - timedelta(days=1)
+        prev_start = prev_end - timedelta(days=7)
+    elif date_preset == "직접 지정" and date_range and len(date_range) == 2:
+        curr_start, curr_end = date_range[0], date_range[1]
+        delta_days = (curr_end - curr_start).days + 1
+        prev_end = curr_start - timedelta(days=1)
+        prev_start = prev_end - timedelta(days=delta_days - 1)
+    
+    return curr_start, curr_end, prev_start, prev_end
+
+def filter_data(df, start=None, end=None):
     if df.empty: return df
     res = df.copy()
-    if 'date' in res.columns:
-        if date_preset == "오늘":
-            res = res[res['date'].dt.date == datetime.now().date()]
-        elif date_preset == "최근 1주일":
-            start_date = datetime.now().date() - timedelta(days=7)
-            res = res[(res['date'].dt.date >= start_date) & (res['date'].dt.date <= datetime.now().date())]
-        elif date_preset == "직접 지정" and date_range:
-            if len(date_range) == 2:
-                res = res[(res['date'].dt.date >= date_range[0]) & (res['date'].dt.date <= date_range[1])]
-            elif len(date_range) == 1:
-                res = res[res['date'].dt.date >= date_range[0]]
+    if 'date' in res.columns and start:
+        if end:
+            res = res[(res['date'].dt.date >= start) & (res['date'].dt.date <= end)]
+        else:
+            res = res[res['date'].dt.date >= start]
+            
     if sel_dept and '부서' in res.columns:
         res = res[res['부서'].isin(sel_dept)]
-    elif sel_dept and '부서' in res.columns: # df_users용
-        res = res[res['부서'].isin(sel_dept)]
-    
     if sel_rank and '직급그룹' in res.columns:
         res = res[res['직급그룹'].isin(sel_rank)]
     return res
 
-f_login = filter_data(df_login)
-f_download = filter_data(df_download)
-f_proposal = filter_data(df_proposal)
-f_u = filter_data(df_u)
+# 날짜 계산
+c_s, c_e, p_s, p_e = get_filter_dates()
+
+# 현재 기간 데이터
+f_login = filter_data(df_login, c_s, c_e)
+f_download = filter_data(df_download, c_s, c_e)
+f_proposal = filter_data(df_proposal, c_s, c_e)
+f_u = filter_data(df_u) # 유저는 기간 필터 제외
+
+# 이전 기간 데이터 (증감 계산용)
+p_login = filter_data(df_login, p_s, p_e)
+p_proposal = filter_data(df_proposal, p_s, p_e)
+p_download = filter_data(df_download, p_s, p_e)
+
+def calc_delta(curr_val, prev_val):
+    if prev_val == 0:
+        return ("New", "#6366f1") if curr_val > 0 else ("0%", "#94a3b8")
+    diff = ((curr_val - prev_val) / prev_val) * 100
+    color = "#10b981" if diff > 0 else ("#ef4444" if diff < 0 else "#94a3b8")
+    prefix = "+" if diff > 0 else ""
+    return (f"{prefix}{diff:.1f}%", color)
 
 # [수치 정합성] 부서/직급 정보가 없는 데이터를 '정보미등록'으로 채움
 for df in [f_login, f_download, f_proposal, f_u]:
@@ -74,17 +106,37 @@ for df in [f_login, f_download, f_proposal, f_u]:
         if '직급그룹' in df.columns: 
             df['직급그룹'] = df['직급그룹'].replace(['', None, 'nan', 'NaN'], '정보미등록').fillna('정보미등록')
 
-def get_menu_count(df, pattern):
+# --- 4. 상단 KPI 섹션 ---
+def get_pattern_count(df, pattern):
     if df.empty or '경로 메뉴명' not in df.columns: return 0
     return len(df[df['경로 메뉴명'].astype(str).str.contains(pattern, na=False)])
 
-# --- 4. 상단 KPI 섹션 ---
 kpi_cols = st.columns(5)
-with kpi_cols[0]: render_metric_card("총 로그인", f"{len(f_login):,}건", "#6366f1")
-with kpi_cols[1]: render_metric_card("제안서 DL", f"{len(f_proposal):,}건", "#f59e0b")
-with kpi_cols[2]: render_metric_card("프로젝트 찾기", f"{get_menu_count(f_download, '프로젝트'):,}건", "#10b981")
-with kpi_cols[3]: render_metric_card("운영자료 찾기", f"{get_menu_count(f_download, '운영자료'):,}건", "#3b82f6")
-with kpi_cols[4]: render_metric_card("서포트 센터", f"{get_menu_count(f_download, '서포트'):,}건", "#ec4899")
+with kpi_cols[0]:
+    d = calc_delta(len(f_login), len(p_login)) if c_s else None
+    render_metric_card("총 로그인", f"{len(f_login):,}", d)
+
+with kpi_cols[1]:
+    d = calc_delta(len(f_proposal), len(p_proposal)) if c_s else None
+    render_metric_card("제안서 DL", f"{len(f_proposal):,}", d)
+
+with kpi_cols[2]:
+    curr = get_pattern_count(f_download, '프로젝트')
+    prev = get_pattern_count(p_download, '프로젝트')
+    d = calc_delta(curr, prev) if c_s else None
+    render_metric_card("프로젝트 찾기", f"{curr:,}", d)
+
+with kpi_cols[3]:
+    curr = get_pattern_count(f_download, '운영자료')
+    prev = get_pattern_count(p_download, '운영자료')
+    d = calc_delta(curr, prev) if c_s else None
+    render_metric_card("운영자료 찾기", f"{curr:,}", d)
+
+with kpi_cols[4]:
+    curr = get_pattern_count(f_download, '서포트')
+    prev = get_pattern_count(p_download, '서포트')
+    d = calc_delta(curr, prev) if c_s else None
+    render_metric_card("서포트 센터", f"{curr:,}", d)
 
 st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
 
@@ -103,14 +155,33 @@ with col_mid_left:
         all_trends = pd.merge(daily_login, merged_dl[['date', '다운로드합계']], on='date', how='outer').fillna(0).sort_values('date')
         
         fig = go.Figure()
-        fig.add_trace(go.Scatter(x=all_trends['date'], y=all_trends['로그인수'], name='로그인수', line=dict(color='#6366f1', width=3)))
-        fig.add_trace(go.Scatter(x=all_trends['date'], y=all_trends['다운로드합계'], name='다운로드합계', line=dict(color='#10b981', width=3), yaxis='y2'))
+        # 로그인 수 (라인 + 영역 채우기)
+        fig.add_trace(go.Scatter(
+            x=all_trends['date'], y=all_trends['로그인수'], 
+            name='로그인 수', 
+            mode='lines+markers',
+            line=dict(color='#0f172a', width=3, shape='spline'),
+            marker=dict(size=6),
+            fill='tozeroy', fillcolor='rgba(15, 23, 42, 0.05)'
+        ))
+        # 다운로드 합계 (점선)
+        fig.add_trace(go.Scatter(
+            x=all_trends['date'], y=all_trends['다운로드합계'], 
+            name='다운로드 합계', 
+            mode='lines+markers',
+            line=dict(color='#10b981', width=3, shape='spline', dash='dot'),
+            marker=dict(size=6),
+            yaxis='y2'
+        ))
+        
         fig.update_layout(
-            height=220, margin=dict(l=40, r=40, t=10, b=40),
+            height=320, margin=dict(l=40, r=40, t=20, b=40),
+            hovermode="x unified",
             paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
-            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1, font=dict(size=10)),
-            yaxis=dict(title=dict(text="로그인 수", font=dict(size=10, color="#6366f1")), tickfont=dict(size=10, color="#6366f1")),
-            yaxis2=dict(title=dict(text="다운로드 수", font=dict(size=10, color="#10b981")), tickfont=dict(size=10, color="#10b981"), anchor="x", overlaying="y", side="right")
+            legend=dict(orientation="h", yanchor="bottom", y=1.05, xanchor="right", x=1, font=dict(size=11, family='Inter')),
+            yaxis=dict(showgrid=True, gridcolor='#f1f5f9', title=None, tickfont=dict(size=10, color="#0f172a", family='Inter')),
+            yaxis2=dict(showgrid=False, title=None, tickfont=dict(size=10, color="#10b981", family='Inter'), anchor="x", overlaying="y", side="right"),
+            xaxis=dict(showgrid=False, tickfont=dict(size=10, color="#64748b", family='Inter'))
         )
         st.plotly_chart(fig, use_container_width=True)
     else: st.info("데이터 없음")

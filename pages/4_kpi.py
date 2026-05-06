@@ -6,20 +6,17 @@ from datetime import datetime, timedelta
 import config
 
 # --- [UI Style Helper: Metrics] ---
-def render_metric_card(label, value, color="#6366f1"):
-    st.markdown(f"""
-    <div class="metric-card" style="text-align: center; border-left: 4px solid {color}; padding-left: 10px; background: #f8fafc; padding: 15px; border-radius: 8px;">
-        <div style="color: #64748b; font-size: 11px; font-weight: 600; text-transform: uppercase; margin-bottom: 5px;">{label}</div>
-        <div style="color: #1e293b; font-size: 22px; font-weight: 800;">{value}</div>
-    </div>
-    """, unsafe_allow_html=True)
+def render_metric_card(label, value, delta_text=None, delta_color="#10b981"):
+    delta_html = f'<div style="font-size: 11px; font-weight: 700; color: {delta_color};">{delta_text}</div>' if delta_text else ""
+    html = f'<div class="metric-card"><div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;"><div style="color: #64748b; font-size: 13px; font-weight: 700; text-transform: uppercase; font-family: \'Inter\';">{label}</div>{delta_html}</div><div style="color: #1e293b; font-size: 28px; font-weight: 800; font-family: \'Manrope\';">{value}</div></div>'
+    st.markdown(html, unsafe_allow_html=True)
 
 # --- [Page Header] ---
 st.markdown(f"""
-<div class="page-header" style="padding: 12px 24px; margin-bottom: 16px;">
-    <div style="font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px; opacity: 0.8;">Analytics</div>
-    <div style="font-size: 24px; font-weight: 800; margin-bottom: 4px;"> 2026 EZ데이터허브 KPI (목표 달성 현황)</div>
-    <div style="font-size: 13px; opacity: 0.85; font-weight: 400;"> 목표 대비 핵심 성과 지표(KPI) 달성 여부를 모니터링합니다. </div>
+<div class="page-header">
+    <div style="font-size: 10px; font-weight: 700; color: #6366f1; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 8px; font-family: 'Inter';">Strategic Analytics</div>
+    <div style="font-size: 28px; font-weight: 800; color: #1e293b; margin-bottom: 4px; font-family: 'Manrope';">2026 EZ데이터허브 KPI 달성 현황</div>
+    <div style="font-size: 14px; color: #64748b; font-weight: 400; font-family: 'Inter';">목표 대비 핵심 성과 지표(KPI) 달성 여부를 정밀 모니터링합니다.</div>
 </div>
 """, unsafe_allow_html=True)
 
@@ -108,15 +105,15 @@ kpi_attainment = (avg_dl_per_person / target_value) * 100
 # --- 5. 상단 KPI 카드 ---
 kpi_cols = st.columns(4)
 with kpi_cols[0]: 
-    render_metric_card("인당 평균 총 다운로드", f"{avg_dl_per_person:.1f}회", "#6366f1")
+    render_metric_card("인당 평균 다운로드", f"{avg_dl_per_person:.1f}회")
 with kpi_cols[1]: 
-    render_metric_card("순 사용자 (Active)", f"{len(active_users_list):,}명", "#10b981")
+    render_metric_card("순 사용자 (Active)", f"{len(active_users_list):,}명")
 with kpi_cols[2]: 
-    render_metric_card("총 다운로드 수", f"{cnt_total_dl:,}건", "#3b82f6")
+    render_metric_card("총 다운로드 수", f"{cnt_total_dl:,}건")
 with kpi_cols[3]: 
     # 목표 달성률 색상 분기
     attainment_color = "#10b981" if kpi_attainment >= 100 else "#f59e0b"
-    render_metric_card("KPI 목표 달성률", f"{kpi_attainment:.1f}%", attainment_color)
+    render_metric_card("KPI 목표 달성률", f"{kpi_attainment:.1f}%", "Target 56회", attainment_color)
 
 st.markdown("<div style='height: 20px;'></div>", unsafe_allow_html=True)
 
@@ -124,7 +121,7 @@ st.markdown("<div style='height: 20px;'></div>", unsafe_allow_html=True)
 col_left, col_right = st.columns([1, 2])
 
 with col_left:
-    st.markdown("##### 📊 카테고리별 사용 비중")
+    st.markdown('<div class="headline" style="font-size: 18px; font-weight: 700; color: #1e293b; margin-bottom: 16px;">📊 카테고리별 사용 비중</div>', unsafe_allow_html=True)
     # 차트 데이터 구성
     ratio_df = pd.DataFrame({
         "구분": ["전체 비중"] * 4,
@@ -134,12 +131,12 @@ with col_left:
     total_for_ratio = ratio_df["건수"].sum()
     ratio_df["비중(%)"] = (ratio_df["건수"] / total_for_ratio * 100).round(1) if total_for_ratio > 0 else 0
     
-    # 색상 맵핑 정의 (기존 대시보드와 통일)
+    # 색상 맵핑 정의 (디자인 가이드에 맞게 Deep Navy 테마로 변경)
     color_map = {
-        "제안서": "#f59e0b",   # Amber
-        "프로젝트": "#10b981", # Emerald
-        "운영자료": "#3b82f6", # Blue
-        "서포트": "#ec4899"    # Pink
+        "제안서": "#0f172a",   # Deep Navy
+        "프로젝트": "#334155", # Slate
+        "운영자료": "#10b981", # Emerald
+        "서포트": "#3b82f6"    # Blue
     }
 
     # 세로 누적 막대 그래프
@@ -168,7 +165,7 @@ with col_left:
     st.plotly_chart(fig_bar, use_container_width=True)
 
 with col_right:
-    st.markdown("##### 📈 월별 순 로그인 및 누계")
+    st.markdown('<div class="headline" style="font-size: 18px; font-weight: 700; color: #1e293b; margin-bottom: 16px;">📈 월별 순 로그인 및 누계</div>', unsafe_allow_html=True)
     
     # 월별 데이터 집계 (1-12월 고정)
     months = list(range(1, 13))
@@ -211,7 +208,7 @@ with col_right:
     # Line 1: 월별 순 로그인
     fig_line.add_trace(go.Bar(
         x=[f"{m}월" for m in months], y=login_monthly, 
-        name="순 로그인 수", marker_color="#6366f1", opacity=0.7
+        name="순 로그인 수", marker_color="#0f172a", opacity=0.8
     ))
     # Line 2: 누계
     fig_line.add_trace(go.Scatter(
@@ -224,13 +221,14 @@ with col_right:
         height=350, margin=dict(l=20, r=40, t=20, b=20),
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
         yaxis=dict(
-            title=dict(text="순 로그인 수", font=dict(color="#6366f1")), 
-            tickfont=dict(color="#6366f1")
+            title=dict(text="순 로그인 수", font=dict(color="#0f172a", family='Inter')), 
+            tickfont=dict(color="#0f172a", family='Inter'),
+            showgrid=True, gridcolor='#f1f5f9'
         ),
         yaxis2=dict(
-            title=dict(text="누계", font=dict(color="#f43f5e")), 
-            tickfont=dict(color="#f43f5e"), 
-            overlaying="y", side="right"
+            title=dict(text="누계", font=dict(color="#f43f5e", family='Inter')), 
+            tickfont=dict(color="#f43f5e", family='Inter'), 
+            overlaying="y", side="right", showgrid=False
         ),
         paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)'
     )
