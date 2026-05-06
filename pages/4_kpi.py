@@ -47,7 +47,11 @@ def filter_data(df):
             res = res[(res['date'].dt.date >= start_date) & (res['date'].dt.date <= datetime.now().date())]
         elif date_preset == "직접 지정" and date_range:
             if len(date_range) == 2:
+                # 시작일과 종료일이 모두 선택된 경우
                 res = res[(res['date'].dt.date >= date_range[0]) & (res['date'].dt.date <= date_range[1])]
+            elif len(date_range) == 1:
+                # 시작일만 선택된 경우, 해당 날짜 이후의 모든 데이터 표시
+                res = res[res['date'].dt.date >= date_range[0]]
     
     if sel_dept and '부서' in res.columns:
         res = res[res['부서'].isin(sel_dept)]
@@ -171,9 +175,11 @@ with col_right:
     login_monthly = []
     
     # 현재 조회 데이터의 연도 파악
-    view_year = 2026 # 기본값
+    view_year = config.CURRENT_YEAR
     if not f_login.empty:
         view_year = f_login['date'].dt.year.iloc[0]
+    elif not f_proposal.empty:
+        view_year = f_proposal['date'].dt.year.iloc[0]
         
     for m in months:
         # 월별 필터링

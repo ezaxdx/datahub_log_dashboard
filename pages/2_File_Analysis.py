@@ -50,6 +50,8 @@ def filter_data(df):
         elif date_preset == "직접 지정" and date_range:
             if len(date_range) == 2:
                 res = res[(res['date'].dt.date >= date_range[0]) & (res['date'].dt.date <= date_range[1])]
+            elif len(date_range) == 1:
+                res = res[res['date'].dt.date >= date_range[0]]
     if sel_dept and '부서' in res.columns:
         res = res[res['부서'].isin(sel_dept)]
     elif sel_dept and '부서' in res.columns: # df_users용
