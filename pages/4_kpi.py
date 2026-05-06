@@ -18,7 +18,7 @@ def render_metric_card(label, value, color="#6366f1"):
 st.markdown(f"""
 <div class="page-header" style="padding: 12px 24px; margin-bottom: 16px;">
     <div style="font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px; opacity: 0.8;">Analytics</div>
-    <div style="font-size: 24px; font-weight: 800; margin-bottom: 4px;">✅ Check KPI (목표 달성 현황)</div>
+    <div style="font-size: 24px; font-weight: 800; margin-bottom: 4px;"> 2026 EZ데이터허브 KPI (목표 달성 현황)</div>
     <div style="font-size: 13px; opacity: 0.85; font-weight: 400;"> 목표 대비 핵심 성과 지표(KPI) 달성 여부를 모니터링합니다. </div>
 </div>
 """, unsafe_allow_html=True)
