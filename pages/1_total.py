@@ -160,7 +160,7 @@ with col_mid_left:
             x=all_trends['date'], y=all_trends['로그인수'], 
             name='로그인 수', 
             mode='lines+markers',
-            line=dict(color='#0f172a', width=3, shape='spline'),
+            line=dict(color='#0f172a', width=3, shape='spline', smoothing=0.5),
             marker=dict(size=6),
             fill='tozeroy', fillcolor='rgba(15, 23, 42, 0.05)'
         ))
@@ -169,7 +169,7 @@ with col_mid_left:
             x=all_trends['date'], y=all_trends['다운로드합계'], 
             name='다운로드 합계', 
             mode='lines+markers',
-            line=dict(color='#10b981', width=3, shape='spline', dash='dot'),
+            line=dict(color='#10b981', width=3, shape='spline', smoothing=0.5, dash='dot'),
             marker=dict(size=6),
             yaxis='y2'
         ))
@@ -179,8 +179,8 @@ with col_mid_left:
             hovermode="x unified",
             paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
             legend=dict(orientation="h", yanchor="bottom", y=1.05, xanchor="right", x=1, font=dict(size=11, family='Inter')),
-            yaxis=dict(showgrid=True, gridcolor='#f1f5f9', title=None, tickfont=dict(size=10, color="#0f172a", family='Inter')),
-            yaxis2=dict(showgrid=False, title=None, tickfont=dict(size=10, color="#10b981", family='Inter'), anchor="x", overlaying="y", side="right"),
+            yaxis=dict(showgrid=True, gridcolor='#f1f5f9', title=None, rangemode='nonnegative', tickfont=dict(size=10, color="#0f172a", family='Inter')),
+            yaxis2=dict(showgrid=False, title=None, rangemode='nonnegative', tickfont=dict(size=10, color="#10b981", family='Inter'), anchor="x", overlaying="y", side="right"),
             xaxis=dict(showgrid=False, tickfont=dict(size=10, color="#64748b", family='Inter'))
         )
         st.plotly_chart(fig, use_container_width=True)
@@ -191,9 +191,12 @@ with col_mid_right:
     if not f_proposal.empty:
         agg_cols = ['UserNo', '이름', '부서', '직급']
         heavy_users = f_proposal.groupby(agg_cols).size().reset_index(name='횟수')
-        heavy_users = heavy_users[heavy_users['횟수'] >= warning_threshold].sort_values(by='횟수', ascending=False)
+        heavy_users = heavy_users[heavy_users['횟수'] >= warning_threshold].sort_values(by='횟수', ascending=False).reset_index(drop=True)
+        heavy_users.index += 1
+        heavy_users.index.name = 'NO.'
         if not heavy_users.empty:
-            st.dataframe(heavy_users, use_container_width=True, hide_index=True, height=180)
+            _n = heavy_users.select_dtypes(include='number').columns.tolist()
+            st.dataframe(heavy_users.style.set_properties(subset=_n, **{'text-align': 'center'}), use_container_width=True, hide_index=False, height=180)
         else: st.success("경고 대상 없음")
     else: st.info("데이터 없음")
 
@@ -213,6 +216,8 @@ login_dept_top5 = (
     .head(5)
     .reset_index(drop=True)
 )
+login_dept_top5.index += 1
+login_dept_top5.index.name = 'NO.'
 
 # 2. 사업부별 사용률 TOP5 (변경: 부서 -> 사업부)
 active_by_div = active_users_all.groupby('사업부')['UserNo'].nunique().reset_index(name='순사용자')
@@ -225,6 +230,8 @@ usage_div_top5 = (
     .head(5)
     .reset_index(drop=True)
 )
+usage_div_top5.index += 1
+usage_div_top5.index.name = 'NO.'
 
 # 3. 직급별 로그인 현황
 login_rank_all = (
@@ -233,6 +240,8 @@ login_rank_all = (
     .sort_values('로그인수', ascending=False)
     .reset_index(drop=True)
 )
+login_rank_all.index += 1
+login_rank_all.index.name = 'NO.'
 
 # 4. 직급별 사용률 현황
 active_by_rank = active_users_all.groupby('직급')['UserNo'].nunique().reset_index(name='순사용자')
@@ -244,23 +253,30 @@ usage_rank_all = (
     .sort_values('사용률(%)', ascending=False)
     .reset_index(drop=True)
 )
+usage_rank_all.index += 1
+usage_rank_all.index.name = 'NO.'
 
 # 레이아웃 배치 (1행 4열 표 교체)
 col_t1, col_t2, col_t3, col_t4 = st.columns(4)
 table_height = 210
 
+def _num_center(df):
+    """숫자형 컬럼 가운데 정렬 Styler"""
+    num_cols = df.select_dtypes(include='number').columns.tolist()
+    return df.style.set_properties(subset=num_cols, **{'text-align': 'center'})
+
 with col_t1:
     st.markdown("##### 부서별 로그인 TOP5")
-    st.dataframe(login_dept_top5, use_container_width=True, hide_index=True, height=table_height)
+    st.dataframe(_num_center(login_dept_top5), use_container_width=True, hide_index=False, height=table_height)
 
 with col_t2:
     st.markdown("##### 사업부별 사용률 TOP5")
-    st.dataframe(usage_div_top5, use_container_width=True, hide_index=True, height=table_height)
+    st.dataframe(_num_center(usage_div_top5), use_container_width=True, hide_index=False, height=table_height)
 
 with col_t3:
     st.markdown("##### 직급별 로그인 현황")
-    st.dataframe(login_rank_all, use_container_width=True, hide_index=True, height=table_height)
+    st.dataframe(_num_center(login_rank_all), use_container_width=True, hide_index=False, height=table_height)
 
 with col_t4:
     st.markdown("##### 직급별 사용률 현황")
-    st.dataframe(usage_rank_all, use_container_width=True, hide_index=True, height=table_height)
+    st.dataframe(_num_center(usage_rank_all), use_container_width=True, hide_index=False, height=table_height)

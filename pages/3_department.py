@@ -109,7 +109,12 @@ if active_df.empty:
 
 # [최종] 제외 그룹 명칭 확정 (사용자 요청 반영: 딱 2개 그룹만 제외)
 exclude_groups = ["M-Level", "스마트관광 디지털융합혁신"]
-active_df = active_df[~active_df['부서_그룹'].isin(exclude_groups)]
+_null_strs = {'None', 'nan', ''}
+active_df = active_df[
+    ~active_df['부서_그룹'].isin(exclude_groups) &
+    active_df['부서_그룹'].notna() &
+    ~active_df['부서_그룹'].astype(str).str.strip().isin(_null_strs)
+]
 
 # 집계 (부서_그룹 기준)
 dept_counts = active_df.groupby('부서_그룹').size().reset_index(name='횟수')
@@ -258,8 +263,14 @@ st.markdown("<hr style='margin: 8px 0; border: none; border-top: 1px solid #eee;
 # --- 7. 섹션 3: 인원표 ---
 st.markdown('<div class="headline" style="font-size: 20px; font-weight: 800; color: #1e293b; margin-top: 32px; margin-bottom: 24px;">👥 부서/직급별 인원 현황</div>', unsafe_allow_html=True)
 
-# 1. 전체 인원 피벗 (f_u 기준 - 제외 그룹 필터링 반영)
-f_u_filtered = f_u[~f_u['부서_그룹'].isin(exclude_groups)]
+# 1. 전체 인원 피벗 (f_u 기준 - 제외 그룹 + None 필터링)
+f_u_filtered = f_u[
+    ~f_u['부서_그룹'].isin(exclude_groups) &
+    f_u['부서_그룹'].notna() &
+    ~f_u['부서_그룹'].astype(str).str.strip().isin(_null_strs) &
+    f_u['직급'].notna() &
+    ~f_u['직급'].astype(str).str.strip().isin(_null_strs)
+]
 total_pivot = pd.crosstab(f_u_filtered['부서_그룹'], f_u_filtered['직급'])
 
 # 2. 순 사용자 피벗 (active_df 기준)
@@ -276,13 +287,10 @@ for col in cols:
     # 각 셀을 "활동인원/전체인원"으로 표시
     xtab[col] = active_pivot[col].astype(int).astype(str) + "/" + total_pivot[col].astype(int).astype(str)
 
-# 행별 합계 계산 (전체 부서 인원 대비 활동 인원)
-active_total_row = active_df.groupby('부서_그룹')['UserNo'].nunique()
-total_total_row = f_u_filtered.groupby('부서_그룹')['UserNo'].nunique()
-
-# 인덱스 맞춤
-active_total_row = active_total_row.reindex(total_pivot.index, fill_value=0)
-total_total_row = total_total_row.reindex(total_pivot.index, fill_value=0)
+# 행별 합계: 피벗에 표시된 직급 컬럼 합산 → 크로스탭과 일관성 유지
+# (f_u_filtered 전체를 쓰면 "정보미등록" 직급 포함되어 합계가 더 크게 나옴)
+active_total_row = active_pivot.sum(axis=1).reindex(total_pivot.index, fill_value=0)
+total_total_row  = total_pivot.sum(axis=1).reindex(total_pivot.index, fill_value=0)
 
 xtab['합계'] = active_total_row.astype(int).astype(str) + "/" + total_total_row.astype(int).astype(str)
 

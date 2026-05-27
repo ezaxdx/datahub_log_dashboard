@@ -85,6 +85,21 @@ st.markdown("""
         border: 1px solid #e2e8f0;
         margin-bottom: 32px;
     }
+
+    /* Dataframe 제목행 흰색 배경 (canvas 렌더러) */
+    [data-testid="stDataFrame"] [role="columnheader"],
+    [data-testid="stDataFrame"] th {
+        background-color: #ffffff !important;
+        color: #1e293b !important;
+        font-weight: 700 !important;
+    }
+    /* Pandas Styler 기반 테이블: NO. 인덱스 + 열 헤더 흰색/가운데 */
+    th.row_heading, th.col_heading, th.blank {
+        background-color: #ffffff !important;
+        text-align: center !important;
+        color: #1e293b !important;
+        font-weight: 700 !important;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -94,7 +109,22 @@ if 'df_users' not in st.session_state or reload_requested:
     with st.spinner("데이터 동기화 중..."):
         try:
             data.load_all.clear()
+            data.load_from_api.clear()  # REST_API 모드 캐시도 함께 초기화
             df_users, df_login, df_download, df_proposal = data.run_all()
+
+            # 재직 상태 수동 오버라이드 적용 (status_overrides.json)
+            try:
+                import json as _json
+                _ov_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "status_overrides.json")
+                if os.path.exists(_ov_path) and not df_users.empty and 'UserNo' in df_users.columns:
+                    with open(_ov_path, 'r', encoding='utf-8') as _f:
+                        _overrides = _json.load(_f)
+                    for _uno, _status in _overrides.items():
+                        _mask = df_users['UserNo'] == str(_uno)
+                        df_users.loc[_mask, '재직상태'] = _status
+            except Exception:
+                pass
+
             st.session_state['df_users'] = df_users
             st.session_state['df_login'] = df_login
             st.session_state['df_download'] = df_download

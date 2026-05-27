@@ -5,64 +5,318 @@ from google.oauth2.service_account import Credentials
 from datetime import datetime
 import config
 
+# 자체 서명 인증서 환경에서 urllib3 InsecureRequestWarning 억제
+try:
+    import urllib3
+    urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+except Exception:
+    pass
+
 # --- [load 블록] ---
+
+def _get_api_headers():
+    """
+    API 인증 헤더를 반환합니다.
+    우선순위: st.secrets["api"]["token"] > config.API_HEADERS
+    """
+    import os, tomllib
+    headers = dict(getattr(config, "API_HEADERS", {}))
+
+    token = None
+    # 1. Streamlit Secrets
+    try:
+        if hasattr(st, "secrets") and "api" in st.secrets:
+            token = st.secrets["api"].get("token", None)
+    except Exception:
+        pass
+
+    # 2. .streamlit/secrets.toml 직접 읽기 (스케줄러 등 비-Streamlit 환경)
+    if not token:
+        try:
+            secrets_path = os.path.join(".streamlit", "secrets.toml")
+            if os.path.exists(secrets_path):
+                with open(secrets_path, "rb") as f:
+                    sec = tomllib.load(f)
+                if "api" in sec:
+                    token = sec["api"].get("token", None)
+        except Exception:
+            pass
+
+    if token:
+        headers["Authorization"] = token if token.startswith("Bearer ") else f"Bearer {token}"
+
+    return headers
+
+
+def _paginate(endpoint_path, method="POST", payload=None, label=""):
+    """
+    API를 페이지 단위로 반복 호출하여 전체 레코드 리스트를 반환합니다.
+
+    지원 응답 구조:
+      A) {"data": {"list": [...], "totalCount": N, "page": N, "size": N}}  ← AI Gate / 로그인·다운로드
+      B) {"list": [...], "totalCount": N}                                  ← DRM 제안서
+      C) 단순 배열 [...]                                                    ← 직원정보 등
+    """
+    import requests
+
+    base_url   = getattr(config, "API_BASE_URL", "")
+    page_size  = getattr(config, "API_PAGE_SIZE", 200)
+    verify_ssl = getattr(config, "API_VERIFY_SSL", False)
+    headers    = _get_api_headers()
+    url        = base_url + endpoint_path
+
+    all_records = []
+    page = 0
+
+    while True:
+        req_body = {**(payload or {}), "page": page, "size": page_size}
+        try:
+            if method.upper() == "POST":
+                resp = requests.post(url, json=req_body, headers=headers,
+                                     verify=verify_ssl, timeout=30)
+            else:
+                # GET: page/size를 query parameter로 전달
+                params = {k: v for k, v in req_body.items()}
+                resp = requests.get(url, params=params, headers=headers,
+                                    verify=verify_ssl, timeout=30)
+
+            if resp.status_code != 200:
+                st.warning(f"[{label}] API 오류 (HTTP {resp.status_code}) — {url}")
+                break
+
+            j = resp.json()
+
+            # 응답 구조 A: data.list
+            if isinstance(j, dict) and "data" in j and isinstance(j["data"], dict):
+                inner    = j["data"]
+                records  = inner.get("list", [])
+                total    = inner.get("totalCount", len(records))
+            # 응답 구조 B: list (최상위)
+            elif isinstance(j, dict) and "list" in j:
+                records  = j["list"]
+                total    = j.get("totalCount", len(records))
+            # 응답 구조 C: 단순 배열
+            elif isinstance(j, list):
+                records  = j
+                total    = len(j)
+            else:
+                records  = []
+                total    = 0
+
+            all_records.extend(records)
+
+            # 전체 데이터를 모두 받았거나 마지막 페이지면 종료
+            if len(all_records) >= total or len(records) == 0:
+                break
+
+            page += 1
+
+        except Exception as e:
+            st.warning(f"[{label}] API 호출 실패 (page={page}): {e}")
+            break
+
+    return all_records
+
+
+# ──────────────────────────────────────────────
+#  데이터 타입별 빌더 (API 레코드 → DataFrame)
+# ──────────────────────────────────────────────
+
+def _build_users_df(records: list) -> pd.DataFrame:
+    """
+    직원정보 API 레코드 → df_users (Google Sheets 컬럼명 규격으로 변환)
+
+    API 필드 매핑:
+        userNo          → UserNo          (3자리 zero-pad는 map_all에서 처리)
+        userNm          → 임직원명
+        prsId           → PRS ID
+        hireDt          → 입사일자
+        history[year].deptNm         → {year}_부서명
+        history[year].hqNm           → {year}_본부/실
+        history[year].divisionNm     → {year}_사업부
+        history[year].statPositionNm → {year}_통계 직급
+    """
+    rows = []
+    for r in records:
+        retire_dt = r.get("retireDt") or ""
+        row = {
+            "UserNo":   str(r.get("userNo", "")),
+            "임직원명":  r.get("userNm", ""),
+            "PRS ID":   str(r.get("prsId", "")).strip().lower(),
+            "입사일자":  r.get("hireDt", ""),
+            "퇴사일자":  retire_dt,                          # 재직 중이면 ""
+            "재직상태":  "퇴사" if retire_dt else "재직",    # 필터·표시용
+        }
+
+        # history[] 평탄화: 연도별 소속·직급 이력 → {year}_컬럼명
+        for h in r.get("history", []):
+            year = str(h.get("year", "")).strip()
+            if not year:
+                continue
+            row[f"{year}_부서명"]    = h.get("deptNm", "")
+            row[f"{year}_본부/실"]   = h.get("hqNm", "")
+            row[f"{year}_사업부"]    = h.get("divisionNm", "")
+            row[f"{year}_통계 직급"] = h.get("statPositionNm", "")
+
+        rows.append(row)
+
+    return pd.DataFrame(rows) if rows else pd.DataFrame()
+
+
+def _build_login_df(records: list) -> pd.DataFrame:
+    """
+    로그인 이력 API 레코드 → df_login
+
+    API 필드 매핑:
+        userNo     → UserNo
+        createdDt  → 로그인 일자 (YYYY-MM-DD) + 로그인 시간 (HH:MM:SS)
+          ※ createdDt 형식: ISO 8601 (예: "2026-04-17T09:24:35+09:00")
+    """
+    rows = []
+    for r in records:
+        date_str = time_str = ""
+        raw_dt = r.get("createdDt") or r.get("loginDt") or ""
+        if raw_dt:
+            try:
+                dt = pd.to_datetime(raw_dt, utc=True).tz_convert("Asia/Seoul")
+                date_str = dt.strftime("%Y-%m-%d")
+                time_str = dt.strftime("%H:%M:%S")
+            except Exception:
+                pass
+
+        rows.append({
+            "UserNo":    str(r.get("userNo", "")),
+            "로그인 일자": date_str,
+            "로그인 시간": time_str,
+        })
+
+    return pd.DataFrame(rows) if rows else pd.DataFrame()
+
+
+def _build_download_df(records: list) -> pd.DataFrame:
+    """
+    다운로드 이력 API 레코드 → df_download
+
+    API 필드 매핑:
+        userNo      → UserNo
+        createDt    → 다운로드 일자 + 다운로드 시간
+        filePath    → 경로 메뉴명  (URL 키워드로 카테고리 분류)
+          manage-file    → 운영자료
+          project-search → 프로젝트
+          support        → 서포트
+          그 외           → 기타
+    """
+    cat_map = getattr(config, "DOWNLOAD_PATH_CATEGORIES", {
+        "manage-file":    "운영자료",
+        "project-search": "프로젝트",
+        "support":        "서포트",
+    })
+
+    rows = []
+    for r in records:
+        date_str = time_str = ""
+        raw_dt = r.get("createDt") or r.get("downloadDt") or ""
+        if raw_dt:
+            try:
+                dt = pd.to_datetime(raw_dt, utc=True).tz_convert("Asia/Seoul")
+                date_str = dt.strftime("%Y-%m-%d")
+                time_str = dt.strftime("%H:%M:%S")
+            except Exception:
+                pass
+
+        # filePath → 경로 메뉴명
+        file_path = str(r.get("filePath", ""))
+        category = "기타"
+        for keyword, label in cat_map.items():
+            if keyword in file_path:
+                category = label
+                break
+
+        rows.append({
+            "UserNo":    str(r.get("userNo", "")),
+            "다운로드 일자": date_str,
+            "다운로드 시간": time_str,
+            "경로 메뉴명":  category,
+            "파일명":      r.get("fileNm", ""),   # 실제 파일명 (Top10 분석용)
+        })
+
+    return pd.DataFrame(rows) if rows else pd.DataFrame()
+
+
+def _build_proposal_df(records: list) -> pd.DataFrame:
+    """
+    제안서(ezPDF DRM) 열람 로그 API 레코드 → df_proposal
+
+    API 필드 매핑:
+        prsId    → PRS ID   (UserNo 역매핑 브릿지)
+        openDate → 등록일    ("2026. 4. 29" → "2026-04-29" 정규화)
+        openTime → 등록시간  ("HH:MM:SS")
+    """
+    import re
+
+    def _normalize_date(raw: str) -> str:
+        """"2026. 4. 29" 형식 → "2026-04-29" 표준 변환"""
+        m = re.match(r"(\d{4})\.\s*(\d{1,2})\.\s*(\d{1,2})", str(raw).strip())
+        if m:
+            y, mo, d = m.groups()
+            return f"{y}-{mo.zfill(2)}-{d.zfill(2)}"
+        return raw  # 이미 표준 형식이면 그대로
+
+    # 제외 계정 목록 (config.PROPOSAL_EXCLUDE_ACCOUNTS)
+    exclude_accounts = set(
+        a.strip().lower()
+        for a in getattr(config, "PROPOSAL_EXCLUDE_ACCOUNTS", [])
+    )
+
+    rows = []
+    for r in records:
+        prs_id  = str(r.get("prsId",  "")).strip().lower()
+        user_nm = str(r.get("userNm", "")).strip().lower()
+
+        # userNm 또는 prsId 가 제외 목록에 있으면 스킵
+        if prs_id in exclude_accounts or user_nm in exclude_accounts:
+            continue
+
+        rows.append({
+            "PRS ID":   prs_id,
+            "등록일":    _normalize_date(r.get("openDate", "")),
+            "등록시간":  r.get("openTime", ""),
+            "문서경로":  r.get("itemId", ""),
+        })
+
+    return pd.DataFrame(rows) if rows else pd.DataFrame()
+
 
 @st.cache_data(ttl=600)
 def load_from_api():
     """
     사내 REST API에서 모든 데이터를 로드하고 DataFrame으로 반환합니다.
+    반환 컬럼 규격은 Google Sheets 버전과 동일 → 하위 map/preprocess 로직 재사용.
     """
-    import requests
-    
-    headers = getattr(config, "API_HEADERS", {})
-    endpoints = getattr(config, "API_ENDPOINTS", {})
-    
-    def fetch_df(api_key):
-        url = endpoints.get(api_key)
-        if not url:
-            return pd.DataFrame()
-        try:
-            response = requests.get(url, headers=headers, timeout=10)
-            if response.status_code == 200:
-                json_data = response.json()
-                if isinstance(json_data, dict) and 'data' in json_data:
-                    data_list = json_data['data']
-                elif isinstance(json_data, list):
-                    data_list = json_data
-                else:
-                    data_list = []
-                
-                df = pd.DataFrame(data_list)
-                
-                # PK 컬럼 중복 제거
-                pk_cols = ['NO', 'No', '번호']
-                actual_pk = [c for c in pk_cols if c in df.columns]
-                if actual_pk:
-                    df = df.drop_duplicates(subset=actual_pk, keep='last')
-                
-                # 숫자 자동 변환
-                for col in df.columns:
-                    try:
-                        df[col] = pd.to_numeric(df[col])
-                    except (ValueError, TypeError):
-                        pass
-                return df
-            else:
-                st.warning(f"API {api_key} 호출 실패 (Status: {response.status_code})")
-                return pd.DataFrame()
-        except Exception as e:
-            st.warning(f"API {api_key} 연결 실패: {e}")
-            return pd.DataFrame()
+    # 1. 직원정보
+    users_records = _paginate(
+        config.API_ENDPOINT_USERS, method="GET", label="직원정보"
+    )
+    df_users = _build_users_df(users_records)
 
-    df_users = fetch_df("users")
-    df_login = fetch_df("login")
-    df_download = fetch_df("download")
-    df_proposal = fetch_df("proposal")
-    
-    # 만약 직원정보에 No 컬럼이 들어있다면 제거
-    if "No" in df_users.columns:
-        df_users = df_users.drop(columns=["No"])
-        
+    # 2. 로그인 이력
+    login_records = _paginate(
+        config.API_ENDPOINT_LOGIN, method="POST", payload={}, label="로그인"
+    )
+    df_login = _build_login_df(login_records)
+
+    # 3. 다운로드 이력
+    download_records = _paginate(
+        config.API_ENDPOINT_DOWNLOAD, method="POST", payload={}, label="다운로드"
+    )
+    df_download = _build_download_df(download_records)
+
+    # 4. 제안서(ezPDF DRM) 열람 로그
+    proposal_records = _paginate(
+        config.API_ENDPOINT_PROPOSAL, method="POST", payload={}, label="제안서"
+    )
+    df_proposal = _build_proposal_df(proposal_records)
+
     return df_users, df_login, df_download, df_proposal
 
 @st.cache_data(ttl=600)
@@ -315,9 +569,11 @@ def map_all(df_users, df_login, df_download, df_proposal):
 
         return df
 
-    df_login = join_master_info(df_login, df_users)
-    df_download = join_master_info(df_download, df_users)
-    df_proposal = join_master_info(df_proposal, df_users)
+    # 로그 조인용 마스터: 재직자만 사용 (퇴사자 로그는 분석 수치에서 제외)
+    active_users = df_users[df_users.get('재직상태', pd.Series('재직', index=df_users.index)) != '퇴사'] if '재직상태' in df_users.columns else df_users
+    df_login = join_master_info(df_login, active_users)
+    df_download = join_master_info(df_download, active_users)
+    df_proposal = join_master_info(df_proposal, active_users)
 
     # 4. 마스터(df_users) 자체에도 현재 연도 기준 표준 컬럼 추가 (apply 루프 제거)
     if not df_users.empty:

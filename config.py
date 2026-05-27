@@ -33,6 +33,17 @@ SHEET_NAME_PROPOSAL = "제안서_ezPDF"
 DEFAULT_EXCLUDE_DEPTS = ["AXDX팀", "ICT융합개발본부"]
 DEFAULT_EXCLUDE_USERNO = ["곽은경_280"]
 
+# 제안서 열람 로그 제외 계정 (구축·테스트용 계정)
+# userNm 또는 prsId 가 아래 값과 일치하는 레코드를 제외
+PROPOSAL_EXCLUDE_ACCOUNTS = [
+    "admin",
+    "Group1_admin",
+    "테스트입니다.",
+    "bella@ezpmp.co.kr",
+    "msbfox",
+    "dskim",
+]
+
 # --- [이메일 알림 설정] ---
 # 발신용 SMTP 설정 (보안을 위해 .streamlit/secrets.toml 에서 로드)
 SMTP_CONFIG = {
@@ -79,19 +90,36 @@ ALERT_CATEGORIES = ["제안서", "운영자료", "서포트", "프로젝트"]
 
 # --- [API 연동 소스 설정] ---
 # "GSPREAD" (기본 구글시트 연동) 또는 "REST_API" (사내 REST API 연동) 선택
-DATA_SOURCE_MODE = "GSPREAD" 
+DATA_SOURCE_MODE = "REST_API"
 
-# 사내 REST API 엔드포인트 설정 (옵션 2 용)
-API_ENDPOINTS = {
-    "users": "https://api.ezdatahub.co.kr/v1/employees",      # 직원정보 조회 API
-    "login": "https://api.ezdatahub.co.kr/v1/logs/login",      # 로그인 로그 조회 API
-    "download": "https://api.ezdatahub.co.kr/v1/logs/download", # 다운로드 로그 조회 API
-    "proposal": "https://api.ezdatahub.co.kr/v1/logs/proposal"  # 제안서 로그 조회 API
+# SSL 검증 여부 (개발/운영 서버 자체 서명 인증서 대응)
+API_VERIFY_SSL = False
+
+# 운영 서버 Base URL (끝에 / 없이)
+API_BASE_URL = "https://apitest.ezpmp.co.kr:8443/v1/micedx-prod"
+
+# 각 엔드포인트 경로 (path만, Base URL 제외)
+API_ENDPOINT_USERS    = "/admin/user/evaluation/get"          # GET  직원정보 전체 조회
+API_ENDPOINT_LOGIN    = "/api/v1/admin/login-history/search"  # POST 로그인 이력 목록 조회
+API_ENDPOINT_DOWNLOAD = "/api/v1/admin/download-logs/search"  # POST 다운로드 로그 목록 조회
+API_ENDPOINT_PROPOSAL = "/admin/drm/open-log/get"             # POST 제안서(ezPDF DRM) 열람 로그
+
+# 페이지당 최대 레코드 수 (API 허용 최대치)
+API_PAGE_SIZE = 200
+
+# 다운로드 filePath 키워드 → 경로 메뉴명 매핑
+# API 응답의 filePath URL 안에 포함된 키워드로 카테고리를 구분합니다.
+DOWNLOAD_PATH_CATEGORIES = {
+    "manage-file":    "운영자료 찾기",
+    "project-search": "프로젝트 찾기",
+    "performance":    "프로젝트 실적",   # 검색결과 엑셀 다운 → str.contains('프로젝트')에 자동 포함
+    "support":        "서포트 센터",
 }
 
-# API 호출 시 인증을 위한 헤더 설정 (필요시 토큰 등 입력)
+# API 인증 헤더 (토큰은 .streamlit/secrets.toml [api] token 에서 자동 로드)
+# secrets.toml에 없을 경우 아래 값을 직접 입력
 API_HEADERS = {
-    "Authorization": "Bearer YOUR_API_SECRET_TOKEN_HERE",
-    "Content-Type": "application/json"
+    "Content-Type": "application/json",
+    # "Authorization": "Bearer <token>",  ← secrets.toml에서 자동 주입됨
 }
 

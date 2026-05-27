@@ -85,6 +85,7 @@ def get_cat_agg(df, pattern, col_name):
     return temp.groupby('UserNo').size().reset_index(name=col_name)
 
 proj_agg = get_cat_agg(f_download, '프로젝트 찾기', '프로젝트찾기')
+perf_agg = get_cat_agg(f_download, '프로젝트 실적', '프로젝트실적')
 ops_agg = get_cat_agg(f_download, '운영자료 찾기', '운영자료 찾기')
 supp_agg = get_cat_agg(f_download, '서포트 센터', '서포트센터')
 
@@ -92,33 +93,48 @@ supp_agg = get_cat_agg(f_download, '서포트 센터', '서포트센터')
 df_user_activity = user_base.merge(login_agg, on='UserNo', how='left') \
                             .merge(proposal_agg, on='UserNo', how='left') \
                             .merge(proj_agg, on='UserNo', how='left') \
+                            .merge(perf_agg, on='UserNo', how='left') \
                             .merge(ops_agg, on='UserNo', how='left') \
                             .merge(supp_agg, on='UserNo', how='left') \
                             .fillna(0)
 
+# 컬럼명 표시용으로 rename (내부 집계명 → 화면 표시명)
+df_user_activity = df_user_activity.rename(columns={
+    '총로그인수':   '총 로그인수',
+    '제안서다운로드': '제안서 DL',
+    '프로젝트찾기':  '프로젝트',
+    '프로젝트실적':  '프로젝트 실적',
+    '운영자료 찾기': '운영자료',
+    '서포트센터':   '서포트 센터',
+})
+
 # 숫자형 변환
-count_cols = ['총로그인수', '제안서다운로드', '프로젝트찾기', '운영자료 찾기', '서포트센터']
+count_cols = ['총 로그인수', '제안서 DL', '프로젝트', '프로젝트 실적', '운영자료', '서포트 센터']
 for c in count_cols:
     df_user_activity[c] = df_user_activity[c].astype(int)
 
 with col_s1_left:
     st.markdown('<div class="headline" style="font-size: 18px; font-weight: 700; color: #1e293b; margin-bottom: 16px;">👤 직원별 활동 상세내역</div>', unsafe_allow_html=True)
-    # 조건부 서식 적용 (변경: 제안서 다운로드 컬럼에만 빨간색 표시)
+    # 조건부 서식 적용 (제안서 DL 컬럼에만 빨간색 표시)
     def highlight_proposal(val):
         color = '#ef4444' if isinstance(val, (int, float)) and val >= warning_threshold else ''
         background = '#fee2e2' if color else ''
         return f'color: {color}; background-color: {background}; font-weight: bold;' if color else ''
 
-    styled_activity = df_user_activity.sort_values(['제안서다운로드', '총로그인수'], ascending=False).style.map(
-        highlight_proposal, subset=['제안서다운로드']
-    )
-    st.dataframe(styled_activity, use_container_width=True, hide_index=True, height=300)
+    _activity_sorted = df_user_activity.sort_values(['제안서 DL', '총 로그인수'], ascending=False).reset_index(drop=True)
+    _activity_sorted.index += 1
+    _activity_sorted.index.name = 'NO.'
+    _act_num = _activity_sorted.select_dtypes(include='number').columns.tolist()
+    styled_activity = _activity_sorted.style.map(
+        highlight_proposal, subset=['제안서 DL']
+    ).set_properties(subset=_act_num, **{'text-align': 'center'})
+    st.dataframe(styled_activity, use_container_width=True, hide_index=False, height=300)
 
 with col_s1_right:
     # 제안서 경고 횟수 설정 (UI 위치 복구)
     warning_threshold = st.selectbox(
-        "제안서 경고 횟수 설정", 
-        options=[5, 10, 15, 20, 30, 50, 100], 
+        "제안서 경고 횟수 설정",
+        options=[5, 10, 15, 20, 30, 50, 100],
         index=1,
         key='user_page_threshold_v2'
     )
@@ -126,8 +142,8 @@ with col_s1_right:
     st.session_state['warning_threshold'] = warning_threshold
 
     st.markdown('<div class="headline" style="font-size: 18px; font-weight: 700; color: #1e293b; margin-bottom: 16px;">🚨 제안서 다운로드 현황</div>', unsafe_allow_html=True)
-    
-    heavy_users = df_user_activity[df_user_activity['제안서다운로드'] >= warning_threshold].copy()
+
+    heavy_users = df_user_activity[df_user_activity['제안서 DL'] >= warning_threshold].copy()
     st.markdown(f"<div style='font-size: 12px; margin-bottom: 8px;'>현재 필터 조건에서 총 <b style='color: #ef4444;'>{len(heavy_users)}</b>명의 사용자가 기준치({warning_threshold}건)를 초과했습니다.</div>", unsafe_allow_html=True)
     
     if not heavy_users.empty:
@@ -199,11 +215,14 @@ if not tl_data.empty:
             tl_display['윈도우시작'] = tl_display['윈도우시작'].dt.strftime('%Y-%m-%d %H:%M')
             tl_display['윈도우종료'] = tl_display['윈도우종료'].dt.strftime('%Y-%m-%d %H:%M')
 
-            cols = ['UserNo', '이름', '부서', '직급', config.COL_NAME_EMAIL, 
+            cols = ['UserNo', '이름', '부서', '직급', config.COL_NAME_EMAIL,
                     f'{h_val}시간내_순다운로드수', '윈도우시작', '문서이름', '열람시간']
+            _tl_sorted = tl_display[cols].sort_values([f'{h_val}시간내_순다운로드수', '열람시간'], ascending=[False, False]).reset_index(drop=True)
+            _tl_sorted.index += 1
+            _tl_sorted.index.name = 'NO.'
             st.dataframe(
-                tl_display[cols].sort_values([f'{h_val}시간내_순다운로드수', '열람시간'], ascending=[False, False]), 
-                use_container_width=True, hide_index=True, height=250
+                _tl_sorted,
+                use_container_width=True, hide_index=False, height=250
             )
         else:
             st.info("해당하는 다운로드 기록이 없습니다.")
@@ -212,7 +231,10 @@ if not tl_data.empty:
         tl_display = tl_data.drop_duplicates(subset=['UserNo', '문서경로'])[['UserNo', '이름', '부서', '직급', config.COL_NAME_EMAIL, '문서경로', 'date']].copy()
         tl_display.rename(columns={'문서경로': '문서이름', 'date': '열람시간'}, inplace=True)
         tl_display['열람시간'] = tl_display['열람시간'].dt.strftime('%Y-%m-%d %H:%M:%S')
-        st.dataframe(tl_display.sort_values('열람시간', ascending=False), use_container_width=True, hide_index=True, height=250)
+        _tl_sorted = tl_display.sort_values('열람시간', ascending=False).reset_index(drop=True)
+        _tl_sorted.index += 1
+        _tl_sorted.index.name = 'NO.'
+        st.dataframe(_tl_sorted, use_container_width=True, hide_index=False, height=250)
 else:
     st.info("해당하는 다운로드 기록이 없습니다.")
 
@@ -235,17 +257,12 @@ with c1:
         proj_info = f_proposal['문서경로'].apply(parse_project).apply(pd.Series)
         proj_info.columns = ['코드', '프로젝트명']
         top10_proj = proj_info.dropna().groupby(['코드', '프로젝트명']).size().reset_index(name='횟수')
-        top10_proj = top10_proj.sort_values('횟수', ascending=False).head(10) # 다시 Top 10으로 복구
+        top10_proj = top10_proj.sort_values('횟수', ascending=False).head(10).reset_index(drop=True)
+        top10_proj.index += 1
+        top10_proj.index.name = 'NO.'
         st.dataframe(
-            top10_proj, 
-            use_container_width=True, 
-            hide_index=True, 
-            height=table_height,
-            column_config={
-                "코드": st.column_config.TextColumn(width="small"),
-                "프로젝트명": st.column_config.TextColumn(width="medium"),
-                "횟수": st.column_config.NumberColumn(width="small")
-            }
+            top10_proj.style.set_properties(subset=['횟수'], **{'text-align': 'center'}),
+            use_container_width=True, hide_index=False, height=table_height,
         )
     else: st.info("데이터 없음")
 
@@ -258,16 +275,14 @@ with c2:
         
         top10_p = proj_logs.groupby('파일명').size().reset_index(name='횟수')
         top10_p.columns = ['파일명', '횟수']
-        top10_p = top10_p.sort_values('횟수', ascending=False).head(10)
+        top10_p = top10_p.sort_values('횟수', ascending=False).head(10)[['파일명', '횟수']].reset_index(drop=True)
+        top10_p.index += 1
+        top10_p.index.name = 'NO.'
         st.dataframe(
-            top10_p, 
-            use_container_width=True, 
-            hide_index=True, 
-            height=table_height,
-            column_config={
-                "파일명": st.column_config.TextColumn(width="medium"),
-                "횟수": st.column_config.NumberColumn(width="small")
-            }
+            top10_p.style
+                .set_properties(subset=['횟수'], **{'text-align': 'center', 'width': '52px', 'min-width': '52px'})
+                .set_properties(subset=['파일명'], **{'max-width': '160px', 'overflow': 'hidden', 'text-overflow': 'ellipsis', 'white-space': 'nowrap'}),
+            use_container_width=True, hide_index=False, height=table_height,
         )
     else: st.info("데이터 없음")
 
@@ -280,16 +295,14 @@ with c3:
         
         top10_ops = ops_logs.groupby('파일명').size().reset_index(name='횟수')
         top10_ops.columns = ['파일명', '횟수']
-        top10_ops = top10_ops.sort_values('횟수', ascending=False).head(10)
+        top10_ops = top10_ops.sort_values('횟수', ascending=False).head(10)[['파일명', '횟수']].reset_index(drop=True)
+        top10_ops.index += 1
+        top10_ops.index.name = 'NO.'
         st.dataframe(
-            top10_ops, 
-            use_container_width=True, 
-            hide_index=True, 
-            height=table_height,
-            column_config={
-                "파일명": st.column_config.TextColumn(width="medium"),
-                "횟수": st.column_config.NumberColumn(width="small")
-            }
+            top10_ops.style
+                .set_properties(subset=['횟수'], **{'text-align': 'center', 'width': '52px', 'min-width': '52px'})
+                .set_properties(subset=['파일명'], **{'max-width': '160px', 'overflow': 'hidden', 'text-overflow': 'ellipsis', 'white-space': 'nowrap'}),
+            use_container_width=True, hide_index=False, height=table_height,
         )
     else: st.info("데이터 없음")
 
@@ -302,15 +315,13 @@ with c4:
         
         top10_supp = supp_logs.groupby('파일명').size().reset_index(name='횟수')
         top10_supp.columns = ['파일명', '횟수']
-        top10_supp = top10_supp.sort_values('횟수', ascending=False).head(10)
+        top10_supp = top10_supp.sort_values('횟수', ascending=False).head(10)[['파일명', '횟수']].reset_index(drop=True)
+        top10_supp.index += 1
+        top10_supp.index.name = 'NO.'
         st.dataframe(
-            top10_supp, 
-            use_container_width=True, 
-            hide_index=True, 
-            height=table_height,
-            column_config={
-                "파일명": st.column_config.TextColumn(width="medium"),
-                "횟수": st.column_config.NumberColumn(width="small")
-            }
+            top10_supp.style
+                .set_properties(subset=['횟수'], **{'text-align': 'center', 'width': '52px', 'min-width': '52px'})
+                .set_properties(subset=['파일명'], **{'max-width': '160px', 'overflow': 'hidden', 'text-overflow': 'ellipsis', 'white-space': 'nowrap'}),
+            use_container_width=True, hide_index=False, height=table_height,
         )
     else: st.info("데이터 없음")
