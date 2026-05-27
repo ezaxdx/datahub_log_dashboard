@@ -13,8 +13,10 @@ YEAR_COL_HQ   = "{year}_본부/실"
 YEAR_COL_RANK = "{year}_통계 직급"
 YEAR_COL_DIVISION = "{year}_사업부"
 
-# 부서별 현황 페이지 전용: 본부명으로 그대로 보여줄 부서 목록
-DEPT_SHOW_AS_HQ = ["CP실", "주최사업실"]
+# 부서별 현황 페이지 전용: 본부명(hqNm)을 사업부 대신 그룹명으로 사용할 목록
+# MICE부문 하위의 컨벤션/E&E 사업부는 API가 divisionNm='MICE부문'으로 묶어 반환하므로
+# hqNm 기준으로 분리 표시 (CP실·주최사업실도 동일 처리)
+DEPT_SHOW_AS_HQ = ["CP실", "주최사업실", "컨벤션 사업부", "E&E 사업부", "MICE혁신본부"]
 
 # 직급 정렬 순서 (사원 -> 임원)
 RANK_ORDER = ['사원', '대리', '과장', '차장', '팀장', '부장', '본부장', '임원']

@@ -61,6 +61,9 @@ f_download = filter_data(df_download)
 f_proposal = filter_data(df_proposal)
 f_u = filter_data(df_u)
 
+# 재직자만 인원 현황에 반영 (퇴사자 제외)
+f_u_active = f_u[f_u['재직상태'] == '재직'].copy() if '재직상태' in f_u.columns else f_u.copy()
+
 # (로그 분기 처리는 아래 섹션 집계 전에 수행됨)
 
 # (데이터 필터링 완료 후, 하단 UI 섹션에서 로그 종류에 따른 active_df 분기 처리를 수행합니다.)
@@ -120,7 +123,7 @@ active_df = active_df[
 dept_counts = active_df.groupby('부서_그룹').size().reset_index(name='횟수')
 dept_unique = active_df.groupby('부서_그룹')['UserNo'].nunique().reset_index(name='순사용자')
 # 인원수 매핑 (df_users 기준 - 전체 부서 목록 확보)
-dept_members = f_u.groupby('부서_그룹').size().reset_index(name='전체인원')
+dept_members = f_u_active.groupby('부서_그룹').size().reset_index(name='전체인원')
 
 # 모든 부서가 나오도록 부서 인원수 데이터를 기준으로 조인
 dept_data = pd.merge(dept_members, dept_counts, on='부서_그룹', how='left')
@@ -179,7 +182,7 @@ if not rank_data.empty:
     rank_counts = rank_data.groupby('직급').size().reset_index(name='횟수')
     rank_unique = rank_data.groupby('직급')['UserNo'].nunique().reset_index(name='순사용자')
     # 인원수 매핑 (임원 제외 전체 직급 목록 확보)
-    all_ranks_no_exec = f_u[f_u['직급'].isin(rank_order_no_exec)]
+    all_ranks_no_exec = f_u_active[f_u_active['직급'].isin(rank_order_no_exec)]
     rank_members = all_ranks_no_exec.groupby('직급').size().reset_index(name='전체인원')
     
     # 모든 직급이 나오도록 직급 인원수 데이터를 기준으로 조인
@@ -263,13 +266,13 @@ st.markdown("<hr style='margin: 8px 0; border: none; border-top: 1px solid #eee;
 # --- 7. 섹션 3: 인원표 ---
 st.markdown('<div class="headline" style="font-size: 20px; font-weight: 800; color: #1e293b; margin-top: 32px; margin-bottom: 24px;">👥 부서/직급별 인원 현황</div>', unsafe_allow_html=True)
 
-# 1. 전체 인원 피벗 (f_u 기준 - 제외 그룹 + None 필터링)
-f_u_filtered = f_u[
-    ~f_u['부서_그룹'].isin(exclude_groups) &
-    f_u['부서_그룹'].notna() &
-    ~f_u['부서_그룹'].astype(str).str.strip().isin(_null_strs) &
-    f_u['직급'].notna() &
-    ~f_u['직급'].astype(str).str.strip().isin(_null_strs)
+# 1. 전체 인원 피벗 (재직자만, 제외 그룹 + None 필터링)
+f_u_filtered = f_u_active[
+    ~f_u_active['부서_그룹'].isin(exclude_groups) &
+    f_u_active['부서_그룹'].notna() &
+    ~f_u_active['부서_그룹'].astype(str).str.strip().isin(_null_strs) &
+    f_u_active['직급'].notna() &
+    ~f_u_active['직급'].astype(str).str.strip().isin(_null_strs)
 ]
 total_pivot = pd.crosstab(f_u_filtered['부서_그룹'], f_u_filtered['직급'])
 

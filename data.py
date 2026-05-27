@@ -538,10 +538,13 @@ def map_all(df_users, df_login, df_download, df_proposal):
             if rank_col in df.columns:
                 df.loc[mask, '직급'] = df.loc[mask, rank_col].astype(str).str.strip().fillna("")
                 
-            # 2. 사업부 매핑
+            # 2. 사업부 매핑 (DEPT_SHOW_AS_HQ 그룹은 hqNm 우선 — MICE부문 내 컨벤션/E&E 분리)
             if div_col in df.columns:
-                div_series = df.loc[mask, div_col].astype(str).str.strip()
-                df.loc[mask, '사업부'] = div_series.replace(['nan', 'NaN', ''], '정보미등록').fillna('정보미등록')
+                _div_s = df.loc[mask, div_col].astype(str).str.strip()
+                _hq_s  = df.loc[mask, hq_col].astype(str).str.strip() if hq_col in df.columns else pd.Series('', index=df.loc[mask].index)
+                _hq_ov = _hq_s.isin(config.DEPT_SHOW_AS_HQ)
+                _div_f = _div_s.where(~_hq_ov, _hq_s)
+                df.loc[mask, '사업부'] = _div_f.replace(['nan', 'NaN', ''], '정보미등록').fillna('정보미등록')
                 
             # 3. 부서 Fallback 일괄 계산 (dept -> hq -> div)
             dept_val = df.loc[mask, dept_col].astype(str).str.strip().replace(['nan', 'NaN', ''], None) if dept_col in df.columns else pd.Series(None, index=df[mask].index)
@@ -594,7 +597,12 @@ def map_all(df_users, df_login, df_download, df_proposal):
             df_users['직급'] = df_users[rank_col].astype(str).str.strip().fillna("")
             
         if div_col in df_users.columns:
-            df_users['사업부'] = df_users[div_col].astype(str).str.strip().replace(['nan', 'NaN', ''], '정보미등록').fillna('정보미등록')
+            # DEPT_SHOW_AS_HQ 그룹은 hqNm 우선 — MICE부문 내 컨벤션/E&E 분리
+            _div = df_users[div_col].astype(str).str.strip()
+            _hq  = df_users[hq_col].astype(str).str.strip() if hq_col in df_users.columns else pd.Series('', index=df_users.index)
+            _hq_override = _hq.isin(config.DEPT_SHOW_AS_HQ)
+            _div_final   = _div.where(~_hq_override, _hq)
+            df_users['사업부'] = _div_final.replace(['nan', 'NaN', ''], '정보미등록').fillna('정보미등록')
 
         dept_val = df_users[dept_col].astype(str).str.strip().replace(['nan', 'NaN', ''], None) if dept_col in df_users.columns else pd.Series(None, index=df_users.index)
         hq_val = df_users[hq_col].astype(str).str.strip().replace(['nan', 'NaN', ''], None) if hq_col in df_users.columns else pd.Series(None, index=df_users.index)
