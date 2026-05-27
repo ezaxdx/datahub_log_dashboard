@@ -223,7 +223,9 @@ login_dept_top5.index.name = 'NO.'
 active_by_div = active_users_all.groupby('사업부')['UserNo'].nunique().reset_index(name='순사용자')
 total_users_div = f_u.groupby('사업부')['UserNo'].nunique().reset_index(name='전체인원')
 usage_div = pd.merge(total_users_div, active_by_div, on='사업부', how='left').fillna(0)
-usage_div['사용률(%)'] = (usage_div['순사용자'] / usage_div['전체인원'] * 100).round(1)
+usage_div['전체인원'] = usage_div['전체인원'].astype(int)
+usage_div['순사용자'] = usage_div['순사용자'].astype(int)
+usage_div['사용률(%)'] = (usage_div['순사용자'] / usage_div['전체인원'] * 100).round(2)
 usage_div_top5 = (
     usage_div[['사업부', '전체인원', '순사용자', '사용률(%)']]
     .sort_values('사용률(%)', ascending=False)
@@ -247,7 +249,9 @@ login_rank_all.index.name = 'NO.'
 active_by_rank = active_users_all.groupby('직급')['UserNo'].nunique().reset_index(name='순사용자')
 total_users_rank = f_u.groupby('직급')['UserNo'].nunique().reset_index(name='전체인원')
 usage_rank = pd.merge(total_users_rank, active_by_rank, on='직급', how='left').fillna(0)
-usage_rank['사용률(%)'] = (usage_rank['순사용자'] / usage_rank['전체인원'] * 100).round(1)
+usage_rank['전체인원'] = usage_rank['전체인원'].astype(int)
+usage_rank['순사용자'] = usage_rank['순사용자'].astype(int)
+usage_rank['사용률(%)'] = (usage_rank['순사용자'] / usage_rank['전체인원'] * 100).round(2)
 usage_rank_all = (
     usage_rank[['직급', '전체인원', '순사용자', '사용률(%)']]
     .sort_values('사용률(%)', ascending=False)
