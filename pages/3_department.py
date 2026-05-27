@@ -5,19 +5,10 @@ import plotly.graph_objects as go
 from datetime import datetime, timedelta
 import config
 
-# --- [UI Style Helper: Metrics] ---
-def render_metric_card(label, value, color="#6366f1"):
-    st.markdown(f"""
-    <div class="metric-card" style="text-align: center; border-left: 4px solid {color}; padding-left: 10px;">
-        <div style="color: #64748b; font-size: 11px; font-weight: 600; text-transform: uppercase;">{label}</div>
-        <div style="color: #1e293b; font-size: 20px; font-weight: 800;">{value}</div>
-    </div>
-    """, unsafe_allow_html=True)
-
 # --- 1. 페이지 헤더 ---
 st.markdown(f"""
 <div class="page-header">
-    <div style="font-size: 10px; font-weight: 700; color: #6366f1; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 8px; font-family: 'Inter';">Organizational Insights</div>
+    <div style="font-size: 10px; font-weight: 700; color: #10b981; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 8px; font-family: 'Inter';">Organizational Insights</div>
     <div style="font-size: 28px; font-weight: 800; color: #1e293b; margin-bottom: 4px; font-family: 'Manrope';">{config.CURRENT_YEAR} 부서 및 직급별 활용 현황</div>
     <div style="font-size: 14px; color: #64748b; font-weight: 400; font-family: 'Inter';">부서와 직급별 인원 대비 활용도를 심층 분석합니다.</div>
 </div>
@@ -266,17 +257,36 @@ st.markdown("<hr style='margin: 8px 0; border: none; border-top: 1px solid #eee;
 
 # --- 7. 섹션 3: 인원표 ---
 st.markdown('<div class="headline" style="font-size: 20px; font-weight: 800; color: #1e293b; margin-top: 32px; margin-bottom: 24px;">👥 부서/직급별 인원 현황</div>', unsafe_allow_html=True)
-# df_u 기준 (전체 임직원 마스터)
-# 부서_그룹 vs 직급
-xtab = pd.crosstab(df_u['부서_그룹'], df_u['직급'])
-# 컬럼 순서 조정 (config.RANK_ORDER 기준)
-cols = [r for r in config.RANK_ORDER if r in xtab.columns]
-xtab = xtab[cols]
 
-# [추가] 과업 요청: 팀 합계 추가
-xtab['합계'] = xtab.sum(axis=1)
+# 1. 전체 인원 피벗 (f_u 기준 - 제외 그룹 필터링 반영)
+f_u_filtered = f_u[~f_u['부서_그룹'].isin(exclude_groups)]
+total_pivot = pd.crosstab(f_u_filtered['부서_그룹'], f_u_filtered['직급'])
 
-# 합계 기준 내림차순 정렬 (선택 사항 - 보기 편하도록)
-xtab = xtab.sort_values(by='합계', ascending=False)
+# 2. 순 사용자 피벗 (active_df 기준)
+active_pivot = active_df.groupby(['부서_그룹', '직급'])['UserNo'].nunique().unstack(fill_value=0)
+
+# 컬럼 순서 및 인덱스 정렬
+cols = [r for r in config.RANK_ORDER if r in total_pivot.columns]
+total_pivot = total_pivot[cols]
+active_pivot = active_pivot.reindex(index=total_pivot.index, columns=total_pivot.columns, fill_value=0)
+
+# "순사용자/총인원" 형식으로 결합
+xtab = total_pivot.copy().astype(str)
+for col in cols:
+    # 각 셀을 "활동인원/전체인원"으로 표시
+    xtab[col] = active_pivot[col].astype(int).astype(str) + "/" + total_pivot[col].astype(int).astype(str)
+
+# 행별 합계 계산 (전체 부서 인원 대비 활동 인원)
+active_total_row = active_df.groupby('부서_그룹')['UserNo'].nunique()
+total_total_row = f_u_filtered.groupby('부서_그룹')['UserNo'].nunique()
+
+# 인덱스 맞춤
+active_total_row = active_total_row.reindex(total_pivot.index, fill_value=0)
+total_total_row = total_total_row.reindex(total_pivot.index, fill_value=0)
+
+xtab['합계'] = active_total_row.astype(int).astype(str) + "/" + total_total_row.astype(int).astype(str)
+
+# 정렬 (총 인원 합계 기준 내림차순)
+xtab = xtab.loc[total_total_row.sort_values(ascending=False).index]
 
 st.dataframe(xtab, use_container_width=True)

@@ -203,13 +203,18 @@ with st.sidebar.expander("🔍 Filter View", expanded=False):
     if date_preset == "직접 지정":
         # 직접 지정 날짜 유지 로직
         saved_range = st.session_state.get('date_range', [today - timedelta(days=7), today])
-        # date_input은 리스트나 튜플 형태를 기대함
-        date_range = st.date_input("조회 기간", saved_range)
+        raw = st.date_input("조회 기간", saved_range)
+        # st.date_input은 날짜 1개 선택 시 datetime.date, 2개 선택 시 tuple을 반환.
+        # 모든 페이지가 list로 일관되게 받을 수 있도록 여기서 한 번만 정규화.
+        if isinstance(raw, (list, tuple)):
+            date_range = list(raw)
+        else:
+            date_range = [raw]   # 단일 날짜 선택 시 → [date]
     elif date_preset == "최근 1주일":
         date_range = [today - timedelta(days=7), today]
     elif date_preset == "오늘":
         date_range = [today, today]
-    
+
     st.session_state['date_preset'] = date_preset
     st.session_state['date_range'] = date_range
 

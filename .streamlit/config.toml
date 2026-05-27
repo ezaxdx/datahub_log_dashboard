@@ -1,2 +1,12 @@
 [client]
 showSidebarNavigation = false
+
+[theme]
+# 라디오 버튼 선택, 멀티셀렉트 태그, 달력 선택일 등 강조 색상
+primaryColor        = "#0f172a"
+# 메인 배경 (app.py CSS와 동일)
+backgroundColor     = "#f7f9fb"
+# 사이드바 / 카드 배경
+secondaryBackgroundColor = "#ffffff"
+# 기본 텍스트 색상
+textColor           = "#1e293b"
