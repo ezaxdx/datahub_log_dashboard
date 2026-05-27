@@ -111,7 +111,7 @@ if active_df.empty:
     st.stop()
 
 # [최종] 제외 그룹 명칭 확정 (사용자 요청 반영: 딱 2개 그룹만 제외)
-exclude_groups = ["M-Level", "스마트관광 디지털융합혁신", "임원실"]
+exclude_groups = ["M-Level", "스마트관광 디지털융합혁신", "임원실", "MICE부문", "(주)이즈피엠피"]
 _null_strs = {'None', 'nan', ''}
 active_df = active_df[
     ~active_df['부서_그룹'].isin(exclude_groups) &
@@ -133,7 +133,11 @@ dept_data['인원대비활동'] = (dept_data['횟수'] / dept_data['전체인원
 dept_data['사용률'] = (dept_data['순사용자'] / dept_data['전체인원'] * 100).replace([float('inf'), -float('inf')], 0).fillna(0).round(1)
 
 # [추가] 활동량 차트에서도 제외 그룹 반영 (0건인 부서 노출 방지)
-dept_data = dept_data[~dept_data['부서_그룹'].isin(exclude_groups)]
+dept_data = dept_data[
+    ~dept_data['부서_그룹'].isin(exclude_groups) &
+    dept_data['부서_그룹'].notna() &
+    ~dept_data['부서_그룹'].astype(str).str.strip().isin(_null_strs)
+]
 dept_data = dept_data.sort_values(by='횟수', ascending=True)
 
 # 차트 (세로 막대)
