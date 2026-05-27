@@ -10,75 +10,95 @@ import notifier  # 추가
 st.set_page_config(page_title="EZ데이터허브 사용 로그 대시보드",layout="wide")
 
 # --- [UI Style Customization] ---
-# Font Awesome CDN & Global SaaS Layout CSS
 st.markdown("""
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 <style>
-    /* 메인 배경색 및 폰트 */
-    .stApp {
-        background-color: #f8fafc;
+    /* 전역 폰트 및 배경 설정 */
+    html, body, [class*="css"], .stApp {
+        font-family: 'Inter', sans-serif;
+        background-color: #f7f9fb;
     }
     
+    h1, h2, h3, h4, h5, h6, .headline {
+        font-family: 'Manrope', sans-serif;
+    }
+
     /* 사이드바 스타일링 */
     [data-testid="stSidebar"] {
-        background-color: #ffffff;
+        background-color: #ffffff !important;
         border-right: 1px solid #e2e8f0;
-        width: 280px !important;
+        padding-top: 20px;
     }
     
-    /* 커스텀 네비게이션 버튼 스타일 */
-    .nav-item {
-        display: flex;
-        align-items: center;
-        padding: 12px 16px;
-        margin: 4px 12px;
-        border-radius: 8px;
-        cursor: pointer;
-        transition: all 0.3s ease;
-        text-decoration: none;
-        color: #64748b;
-        font-weight: 500;
-        border: none;
-        background: none;
-        width: 90%;
-        text-align: left;
+    /* 사이드바 내 버튼 스타일 (네비게이션) */
+    div[data-testid="stVerticalBlock"] > div > div > button {
+        border: none !important;
+        background-color: transparent !important;
+        color: #64748b !important;
+        text-align: left !important;
+        padding: 10px 16px !important;
+        width: 100% !important;
+        border-radius: 10px !important;
+        font-weight: 500 !important;
+        transition: all 0.2s ease !important;
+        display: flex !important;
+        align-items: center !important;
     }
-    
-    .nav-item:hover {
-        background-color: #f1f5f9;
-        color: #6366f1;
+
+    /* 마우스 호버 효과 */
+    div[data-testid="stVerticalBlock"] > div > div > button:hover {
+        background-color: #f1f5f9 !important;
+        color: #1e293b !important;
     }
-    
-    .nav-item.active {
-        background-color: #6366f1;
-        color: #ffffff !important;
-        box-shadow: 0 4px 6px -1px rgba(99, 102, 241, 0.4);
-    }
-    
-    .nav-item i {
-        margin-right: 12px;
-        font-size: 18px;
-        width: 24px;
-        text-align: center;
+
+    /* 활성화된 버튼 스타일 (Primary 버튼 활용) */
+    div[data-testid="stVerticalBlock"] > div > div > button[kind="primary"] {
+        background-color: #f1f5f9 !important;
+        color: #0f172a !important;
+        font-weight: 700 !important;
+        border-left: 4px solid #0f172a !important;
+        border-radius: 4px 10px 10px 4px !important;
     }
 
     /* 메트릭 카드 스타일 */
     .metric-card {
         background-color: #ffffff;
-        padding: 20px;
-        border-radius: 12px;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        padding: 24px;
+        border-radius: 16px;
         border: 1px solid #e2e8f0;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+        transition: transform 0.2s ease;
     }
     
-    /* 섹션 배너 스타일 */
+    .metric-card:hover {
+        transform: translateY(-2px);
+    }
+    
+    /* 페이지 헤더 스타일 */
     .page-header {
-        background: linear-gradient(135deg, #6366f1, #4f46e5);
-        color: white;
-        padding: 24px 32px;
+        background-color: #ffffff;
+        padding: 32px;
         border-radius: 16px;
-        margin-bottom: 24px;
-        box-shadow: 0 4px 12px rgba(79, 70, 229, 0.2);
+        border: 1px solid #e2e8f0;
+        margin-bottom: 32px;
+    }
+
+    /* Dataframe 제목행 흰색 배경 (canvas 렌더러) */
+    [data-testid="stDataFrame"] [role="columnheader"],
+    [data-testid="stDataFrame"] th {
+        background-color: #ffffff !important;
+        color: #1e293b !important;
+        font-weight: 700 !important;
+    }
+    /* Pandas Styler 기반 테이블: NO. 인덱스 + 열 헤더 흰색/가운데 */
+    th.row_heading, th.col_heading, th.blank {
+        background-color: #ffffff !important;
+        text-align: center !important;
+        color: #1e293b !important;
+        font-weight: 700 !important;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -89,7 +109,22 @@ if 'df_users' not in st.session_state or reload_requested:
     with st.spinner("데이터 동기화 중..."):
         try:
             data.load_all.clear()
+            data.load_from_api.clear()  # REST_API 모드 캐시도 함께 초기화
             df_users, df_login, df_download, df_proposal = data.run_all()
+
+            # 재직 상태 수동 오버라이드 적용 (status_overrides.json)
+            try:
+                import json as _json
+                _ov_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "status_overrides.json")
+                if os.path.exists(_ov_path) and not df_users.empty and 'UserNo' in df_users.columns:
+                    with open(_ov_path, 'r', encoding='utf-8') as _f:
+                        _overrides = _json.load(_f)
+                    for _uno, _status in _overrides.items():
+                        _mask = df_users['UserNo'] == str(_uno)
+                        df_users.loc[_mask, '재직상태'] = _status
+            except Exception:
+                pass
+
             st.session_state['df_users'] = df_users
             st.session_state['df_login'] = df_login
             st.session_state['df_download'] = df_download
@@ -117,24 +152,23 @@ if 'df_users' not in st.session_state or reload_requested:
 
 # --- 2. 사이드바 구성 ---
 
-# A. 유저 정보 (이미지 2번 스타일)
+# A. 브랜드 로고 (이미지 스타일)
 st.sidebar.markdown(f"""
-<div style="display: flex; align-items: center; padding: 20px 12px; margin-bottom: 10px;">
-    <div style="background-color: #6366f1; width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; margin-right: 12px;">
-        EZ
+<div style="display: flex; align-items: center; padding: 24px 12px; margin-bottom: 20px; font-family: 'Manrope';">
+    <div style="background-color: #1e293b; width: 42px; height: 42px; border-radius: 10px; display: flex; align-items: center; justify-content: center; color: white; margin-right: 14px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);">
+        <i class="fa-solid fa-database" style="font-size: 20px;"></i>
     </div>
     <div>
-        <div style="font-weight: 700; color: #1e293b; font-size: 15px;">EZ_AXDX</div>
-        <div style="color: #64748b; font-size: 12px;">Log Dashboard v4</div>
+        <div style="font-weight: 800; color: #1e293b; font-size: 18px; line-height: 1.2;">EZ Data Hub</div>
+        <div style="color: #64748b; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Business Intelligence</div>
     </div>
 </div>
 """, unsafe_allow_html=True)
 
-# B. D+ 카운터 카드
+# B. D+ 카운터 (상단 우측 또는 하단 배치 고민 가능하나 일단 사이드바 유지)
 today = datetime.now().date()
 base_date = datetime.strptime(config.BASE_DATE, "%Y-%m-%d").date()
 df_login = st.session_state['df_login']
-latest_log_date = df_login['date'].max().date() if not df_login.empty and 'date' in df_login.columns else today
 days_elapsed = (today - base_date).days
 
 st.sidebar.markdown(f"""
@@ -148,12 +182,15 @@ st.sidebar.markdown(f"""
 st.sidebar.markdown('<p style="font-size: 11px; font-weight: 700; color: #94a3b8; margin-left: 20px; margin-bottom: 8px;">DASHBOARD MENUS</p>', unsafe_allow_html=True)
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
+# C. 메뉴 (네비게이션)
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
 pages = {
-    "Total Dashboard": {"path": os.path.join(BASE_DIR, "pages", "1_total.py"), "icon": "fa-chart-line"},
+    "Total Dashboard": {"path": os.path.join(BASE_DIR, "pages", "1_total.py"), "icon": "fa-table-columns"},
     "File Analysis":   {"path": os.path.join(BASE_DIR, "pages", "2_File_Analysis.py"), "icon": "fa-file-shield"},
-    "Dept & Team":     {"path": os.path.join(BASE_DIR, "pages", "3_department.py"), "icon": "fa-building-columns"},
+    "Dept & Team":     {"path": os.path.join(BASE_DIR, "pages", "3_department.py"), "icon": "fa-users-gear"},
     "Check KPI":       {"path": os.path.join(BASE_DIR, "pages", "4_kpi.py"), "icon": "fa-circle-check"},
-    "Employee List":   {"path": os.path.join(BASE_DIR, "pages", "5_employee_list.py"), "icon": "fa-users-viewfinder"}
+    "Employee List":   {"path": os.path.join(BASE_DIR, "pages", "5_employee_list.py"), "icon": "fa-address-book"}
 }
 
 if 'current_page' not in st.session_state:
@@ -161,17 +198,27 @@ if 'current_page' not in st.session_state:
 
 for name, info in pages.items():
     is_active = st.session_state['current_page'] == name
-    active_class = "active" if is_active else ""
     
-    # 사이드바 버튼으로 메뉴 구현 (CSS 활용)
-    if st.sidebar.button(name, key=f"nav_{name}", use_container_width=True, type="secondary" if not is_active else "primary"):
+    # 아이콘과 함께 버튼 생성
+    if st.sidebar.button(name, key=f"nav_{name}", use_container_width=True, type="primary" if is_active else "secondary"):
         st.session_state['current_page'] = name
         st.rerun()
 
+st.sidebar.markdown("<div style='height: 120px;'></div>", unsafe_allow_html=True)
+
+# D. 하단 유틸리티 (이미지 스타일 준수)
+st.sidebar.markdown("""
+<div style="padding: 0 12px;">
+    <div style="background-color: #1e293b; color: white; padding: 12px; border-radius: 8px; text-align: center; font-size: 13px; font-weight: 600; margin-bottom: 8px; cursor: pointer;">
+        <i class="fa-solid fa-download" style="margin-right: 8px;"></i> Download Report
+    </div>
+</div>
+""", unsafe_allow_html=True)
+
 st.sidebar.markdown("---")
 
-# D. 상세 필터 (익스팬더)
-with st.sidebar.expander("🔍 상세 필터 (조회 기준)", expanded=False):
+# E. 상세 필터 (익스팬더)
+with st.sidebar.expander("🔍 Filter View", expanded=False):
     # 날짜 프리셋 유지 로직
     presets = ["최근 1주일", "오늘", "전체", "직접 지정"]
     saved_preset = st.session_state.get('date_preset', "최근 1주일")
@@ -186,13 +233,18 @@ with st.sidebar.expander("🔍 상세 필터 (조회 기준)", expanded=False):
     if date_preset == "직접 지정":
         # 직접 지정 날짜 유지 로직
         saved_range = st.session_state.get('date_range', [today - timedelta(days=7), today])
-        # date_input은 리스트나 튜플 형태를 기대함
-        date_range = st.date_input("조회 기간", saved_range)
+        raw = st.date_input("조회 기간", saved_range)
+        # st.date_input은 날짜 1개 선택 시 datetime.date, 2개 선택 시 tuple을 반환.
+        # 모든 페이지가 list로 일관되게 받을 수 있도록 여기서 한 번만 정규화.
+        if isinstance(raw, (list, tuple)):
+            date_range = list(raw)
+        else:
+            date_range = [raw]   # 단일 날짜 선택 시 → [date]
     elif date_preset == "최근 1주일":
         date_range = [today - timedelta(days=7), today]
     elif date_preset == "오늘":
         date_range = [today, today]
-    
+
     st.session_state['date_preset'] = date_preset
     st.session_state['date_range'] = date_range
 
