@@ -570,9 +570,10 @@ def map_all(df_users, df_login, df_download, df_proposal):
             fallback_mask = (~hq_mask) & ((div_series == "") | (div_series == "nan"))
             df.loc[mask & fallback_mask, '부서_그룹'] = hq_series[fallback_mask].replace(['nan', ''], 'M-Level')
 
-        # 임원은 부서 무관하게 M-Level 처리 (부서별 분석에서 제외)
+        # 임원·총괄대표·대표이사는 부서 무관하게 M-Level 처리 (부서별 분석에서 제외)
+        _exec_ranks = {'임원', '총괄대표', '대표이사'}
         if '직급' in df.columns:
-            df.loc[df['직급'] == '임원', '부서_그룹'] = 'M-Level'
+            df.loc[df['직급'].isin(_exec_ranks), '부서_그룹'] = 'M-Level'
 
         return df
 
@@ -626,11 +627,14 @@ def map_all(df_users, df_login, df_download, df_proposal):
         fallback_mask = (~hq_mask) & ((div_series == "") | (div_series == "nan"))
         df_users.loc[fallback_mask, '부서_그룹'] = hq_series[fallback_mask].replace(['nan', ''], 'M-Level')
 
-        # 임원은 부서 무관하게 M-Level 처리 (부서별 분석에서 제외)
-        exec_mask = df_users['직급'] == '임원'
+        # 임원·총괄대표·대표이사는 부서 무관하게 M-Level 처리 (부서별 분석·명부 표시에서 제외)
+        _exec_ranks = {'임원', '총괄대표', '대표이사'}
+        exec_mask = df_users['직급'].isin(_exec_ranks)
         df_users.loc[exec_mask, '부서_그룹'] = 'M-Level'
 
         df_users['_ui_dept'] = df_users['부서'].replace('', 'M-Level')
+        # 임원 직급은 명부에서도 M-Level로 표시
+        df_users.loc[exec_mask, '_ui_dept'] = 'M-Level'
 
     return df_users, df_login, df_download, df_proposal
 
