@@ -76,3 +76,22 @@ NOTIFICATION_THRESHOLD = 10
 
 # 알림 대상 카테고리 (경로 메뉴명에 포함된 경우 합산)
 ALERT_CATEGORIES = ["제안서", "운영자료", "서포트", "프로젝트"]
+
+# --- [API 연동 소스 설정] ---
+# "GSPREAD" (기본 구글시트 연동) 또는 "REST_API" (사내 REST API 연동) 선택
+DATA_SOURCE_MODE = "GSPREAD" 
+
+# 사내 REST API 엔드포인트 설정 (옵션 2 용)
+API_ENDPOINTS = {
+    "users": "https://api.ezdatahub.co.kr/v1/employees",      # 직원정보 조회 API
+    "login": "https://api.ezdatahub.co.kr/v1/logs/login",      # 로그인 로그 조회 API
+    "download": "https://api.ezdatahub.co.kr/v1/logs/download", # 다운로드 로그 조회 API
+    "proposal": "https://api.ezdatahub.co.kr/v1/logs/proposal"  # 제안서 로그 조회 API
+}
+
+# API 호출 시 인증을 위한 헤더 설정 (필요시 토큰 등 입력)
+API_HEADERS = {
+    "Authorization": "Bearer YOUR_API_SECRET_TOKEN_HERE",
+    "Content-Type": "application/json"
+}
+

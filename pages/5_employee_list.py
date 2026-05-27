@@ -5,7 +5,7 @@ import config
 # --- [Page Header] ---
 st.markdown(f"""
 <div class="page-header">
-    <div style="font-size: 10px; font-weight: 700; color: #6366f1; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 8px; font-family: 'Inter';">Human Resources</div>
+    <div style="font-size: 10px; font-weight: 700; color: #10b981; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 8px; font-family: 'Inter';">Human Resources</div>
     <div style="font-size: 28px; font-weight: 800; color: #1e293b; margin-bottom: 4px; font-family: 'Manrope';">{config.CURRENT_YEAR} EZ데이터허브 임직원 명부</div>
     <div style="font-size: 14px; color: #64748b; font-weight: 400; font-family: 'Inter';">데이터허브에 등록된 재직자 목록 및 부서 정보를 확인합니다.</div>
 </div>

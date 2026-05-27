@@ -8,11 +8,74 @@ import config
 # --- [load 블록] ---
 
 @st.cache_data(ttl=600)
+def load_from_api():
+    """
+    사내 REST API에서 모든 데이터를 로드하고 DataFrame으로 반환합니다.
+    """
+    import requests
+    
+    headers = getattr(config, "API_HEADERS", {})
+    endpoints = getattr(config, "API_ENDPOINTS", {})
+    
+    def fetch_df(api_key):
+        url = endpoints.get(api_key)
+        if not url:
+            return pd.DataFrame()
+        try:
+            response = requests.get(url, headers=headers, timeout=10)
+            if response.status_code == 200:
+                json_data = response.json()
+                if isinstance(json_data, dict) and 'data' in json_data:
+                    data_list = json_data['data']
+                elif isinstance(json_data, list):
+                    data_list = json_data
+                else:
+                    data_list = []
+                
+                df = pd.DataFrame(data_list)
+                
+                # PK 컬럼 중복 제거
+                pk_cols = ['NO', 'No', '번호']
+                actual_pk = [c for c in pk_cols if c in df.columns]
+                if actual_pk:
+                    df = df.drop_duplicates(subset=actual_pk, keep='last')
+                
+                # 숫자 자동 변환
+                for col in df.columns:
+                    try:
+                        df[col] = pd.to_numeric(df[col])
+                    except (ValueError, TypeError):
+                        pass
+                return df
+            else:
+                st.warning(f"API {api_key} 호출 실패 (Status: {response.status_code})")
+                return pd.DataFrame()
+        except Exception as e:
+            st.warning(f"API {api_key} 연결 실패: {e}")
+            return pd.DataFrame()
+
+    df_users = fetch_df("users")
+    df_login = fetch_df("login")
+    df_download = fetch_df("download")
+    df_proposal = fetch_df("proposal")
+    
+    # 만약 직원정보에 No 컬럼이 들어있다면 제거
+    if "No" in df_users.columns:
+        df_users = df_users.drop(columns=["No"])
+        
+    return df_users, df_login, df_download, df_proposal
+
+@st.cache_data(ttl=600)
 def load_all():
     """
-    Google Sheets에서 모든 데이터를 원본 그대로 로드하고,
+    설정된 소스 모드(DATA_SOURCE_MODE)에 따라 데이터를 로드합니다.
+    Google Sheets 또는 REST API에서 모든 데이터를 원본 그대로 로드하고,
     직원정보의 병합 헤더를 평탄화합니다.
     """
+    mode = getattr(config, "DATA_SOURCE_MODE", "GSPREAD")
+    if mode == "REST_API":
+        return load_from_api()
+        
     try:
         scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
         
@@ -113,8 +176,6 @@ def load_all():
             # No 컬럼 제외
             if "No" in df_users.columns:
                 df_users = df_users.drop(columns=["No"])
-            # [수정] 부서명 공란 필터링 제거 (모든 인원 유지 - 과거 데이터 조인용)
-            # df_users = df_users[df_users[curr_dept_col].astype(str).str.strip() != ""]
     except Exception as e:
         st.warning(f"직원정보 로드 실패: {e}")
 
@@ -195,104 +256,109 @@ def map_all(df_users, df_login, df_download, df_proposal):
         df = df.drop(columns=master_cols)
         df = df.reset_index(drop=True)
 
-        # 연도별 정보 적용 (부서명 Fallback 포함)
-        def apply_year_info(row):
-            # year가 없거나 유효하지 않으면 CURRENT_YEAR 사용
-            try:
-                y = row.get('year')
-                if pd.isna(y) or y == 0:
-                    y_str = str(config.CURRENT_YEAR)
-                else:
-                    y_str = str(int(y))
-            except:
-                y_str = str(config.CURRENT_YEAR)
+        # [최적화] apply(axis=1) 루프 제거 및 벡터화 연산 일괄 처리
+        if 'year' not in df.columns:
+            df['year'] = config.CURRENT_YEAR
+        else:
+            df['year'] = pd.to_numeric(df['year'], errors='coerce').fillna(config.CURRENT_YEAR).astype(int)
             
+        df['부서'] = ""
+        df['사업부'] = "정보미등록"
+        df['직급'] = ""
+        df['부서_그룹'] = "M-Level"
+        df['이름'] = df['임직원명'].fillna("").astype(str).str.strip() if '임직원명' in df.columns else ""
+
+        unique_years = df['year'].unique()
+        for y in unique_years:
+            y_str = str(int(y))
             dept_col = config.YEAR_COL_DEPT.format(year=y_str)
             hq_col = config.YEAR_COL_HQ.format(year=y_str)
-            rank_col = config.YEAR_COL_RANK.format(year=y_str)
             div_col = config.YEAR_COL_DIVISION.format(year=y_str)
+            rank_col = config.YEAR_COL_RANK.format(year=y_str)
             
-            # 부서명 Fallback: 부서명(Dept) -> 본부/실(HQ) -> 사업부(Division)
-            # 1. 1차: 해당 연도 부서명
-            dept_val = row.get(dept_col)
+            mask = df['year'] == y
+            if not mask.any():
+                continue
+                
+            # 1. 직급 매핑
+            if rank_col in df.columns:
+                df.loc[mask, '직급'] = df.loc[mask, rank_col].astype(str).str.strip().fillna("")
+                
+            # 2. 사업부 매핑
+            if div_col in df.columns:
+                div_series = df.loc[mask, div_col].astype(str).str.strip()
+                df.loc[mask, '사업부'] = div_series.replace(['nan', 'NaN', ''], '정보미등록').fillna('정보미등록')
+                
+            # 3. 부서 Fallback 일괄 계산 (dept -> hq -> div)
+            dept_val = df.loc[mask, dept_col].astype(str).str.strip().replace(['nan', 'NaN', ''], None) if dept_col in df.columns else pd.Series(None, index=df[mask].index)
+            hq_val = df.loc[mask, hq_col].astype(str).str.strip().replace(['nan', 'NaN', ''], None) if hq_col in df.columns else pd.Series(None, index=df[mask].index)
+            div_val = df.loc[mask, div_col].astype(str).str.strip().replace(['nan', 'NaN', ''], None) if div_col in df.columns else pd.Series(None, index=df[mask].index)
             
-            # 2. 2차: 해당 연도 본부/실
-            if pd.isna(dept_val) or str(dept_val).strip() == "":
-                dept_val = row.get(hq_col)
+            fallback_dept = dept_val.combine_first(hq_val).combine_first(div_val).fillna("")
+            df.loc[mask, '부서'] = fallback_dept
             
-            # 3. 3차: 해당 연도 사업부
-            if pd.isna(dept_val) or str(dept_val).strip() == "":
-                dept_val = row.get(div_col)
+            # 4. 부서_그룹 일괄 계산
+            hq_series = df.loc[mask, hq_col].astype(str).str.strip().fillna("") if hq_col in df.columns else pd.Series("", index=df[mask].index)
+            div_series = df.loc[mask, div_col].astype(str).str.strip().fillna("") if div_col in df.columns else pd.Series("", index=df[mask].index)
+            
+            # CP실 / 주최사업실 등 본부명 유지
+            hq_mask = hq_series.isin(config.DEPT_SHOW_AS_HQ)
+            df.loc[mask & hq_mask, '부서_그룹'] = hq_series[hq_mask]
+            
+            # 그 외 사업부명 사용
+            div_mask = (~hq_mask) & (div_series != "") & (div_series != "nan")
+            df.loc[mask & div_mask, '부서_그룹'] = div_series[div_mask]
+            
+            # 둘 다 아닌 경우 본부명 fallback (없으면 M-Level)
+            fallback_mask = (~hq_mask) & ((div_series == "") | (div_series == "nan"))
+            df.loc[mask & fallback_mask, '부서_그룹'] = hq_series[fallback_mask].replace(['nan', ''], 'M-Level')
 
-            # 4. 4차: 최후의 수단으로 '정보미등록' (UI에서 처리하므로 일단 유지)
-            
-            # 4. 부서별 현황 페이지 전용 커스텀 그룹핑 (부서_그룹)
-            # 기준: 특정 본부명(config.DEPT_SHOW_AS_HQ)이면 본부명, 그 외는 사업부명 (사업부 없으면 본부)
-            hq_val = str(row.get(hq_col, "")).strip()
-            div_val = str(row.get(div_col, "")).strip()
-            
-            if hq_val in config.DEPT_SHOW_AS_HQ:
-                row['부서_그룹'] = hq_val
-            elif div_val:
-                row['부서_그룹'] = div_val
-            else:
-                row['부서_그룹'] = hq_val if hq_val else "M-Level"
-            
-            row['이름'] = row.get('임직원명', "")
-            row['부서'] = str(dept_val).strip() if not pd.isna(dept_val) else ""
-            row['사업부'] = str(div_val).strip() if not pd.isna(div_val) else "정보미등록"
-            row['직급'] = str(row.get(rank_col, "")).strip()
-            return row
-
-        df = df.apply(apply_year_info, axis=1)
         return df
 
     df_login = join_master_info(df_login, df_users)
     df_download = join_master_info(df_download, df_users)
     df_proposal = join_master_info(df_proposal, df_users)
 
-    # 4. 마스터(df_users) 자체에도 현재 연도 기준 표준 컬럼 추가
+    # 4. 마스터(df_users) 자체에도 현재 연도 기준 표준 컬럼 추가 (apply 루프 제거)
     if not df_users.empty:
-        # df_users는 이미 마스터이므로 조인 대신 직접 apply_year_info와 유사하게 가공
-        # year 컬럼이 없으므로 CURRENT_YEAR를 강제 적용하여 부서/직급 생성
-        df_users['year'] = config.CURRENT_YEAR
-        
-        # dummy join_master_info 효과를 위해 apply_year_info 내부 로직 직접 호출 (또는 dummy join)
-        # 여기서는 단순히 apply_year_info와 같은 로직을 로컬 함수로 정의하여 적용
-        def prepare_master(row):
-            y_str = str(config.CURRENT_YEAR)
-            dept_col = config.YEAR_COL_DEPT.format(year=y_str)
-            hq_col = config.YEAR_COL_HQ.format(year=y_str)
-            div_col = config.YEAR_COL_DIVISION.format(year=y_str)
-            rank_col = config.YEAR_COL_RANK.format(year=y_str)
-            
-            dept_val = row.get(dept_col)
-            if pd.isna(dept_val) or str(dept_val).strip() == "":
-                dept_val = row.get(hq_col)
-            if pd.isna(dept_val) or str(dept_val).strip() == "":
-                dept_val = row.get(div_col)
-            
-            # 값 정의 (사용 전 상단으로 이동)
-            hq_val = str(row.get(hq_col, "")).strip()
-            div_val = str(row.get(div_col, "")).strip()
+        y_str = str(config.CURRENT_YEAR)
+        dept_col = config.YEAR_COL_DEPT.format(year=y_str)
+        hq_col = config.YEAR_COL_HQ.format(year=y_str)
+        div_col = config.YEAR_COL_DIVISION.format(year=y_str)
+        rank_col = config.YEAR_COL_RANK.format(year=y_str)
 
-            row['이름'] = row.get('임직원명', "")
-            row['부서'] = str(dept_val).strip() if not pd.isna(dept_val) else ""
-            row['사업부'] = str(div_val).strip() if not pd.isna(div_val) else "정보미등록"
-            row['직급'] = str(row.get(rank_col, "")).strip()
+        df_users['year'] = config.CURRENT_YEAR
+        df_users['이름'] = df_users['임직원명'].fillna("").astype(str).str.strip()
+        df_users['부서'] = ""
+        df_users['사업부'] = "정보미등록"
+        df_users['직급'] = ""
+        df_users['부서_그룹'] = "M-Level"
+
+        if rank_col in df_users.columns:
+            df_users['직급'] = df_users[rank_col].astype(str).str.strip().fillna("")
             
-            # [추가] 부서별 현황 페이지용 그룹핑
-            if hq_val in config.DEPT_SHOW_AS_HQ:
-                row['부서_그룹'] = hq_val
-            elif div_val:
-                row['부서_그룹'] = div_val
-            else:
-                row['부서_그룹'] = hq_val if hq_val else "M-Level"
-                
-            row['_ui_dept'] = row['부서'] if row['부서'] else "M-Level"
-            return row
+        if div_col in df_users.columns:
+            df_users['사업부'] = df_users[div_col].astype(str).str.strip().replace(['nan', 'NaN', ''], '정보미등록').fillna('정보미등록')
+
+        dept_val = df_users[dept_col].astype(str).str.strip().replace(['nan', 'NaN', ''], None) if dept_col in df_users.columns else pd.Series(None, index=df_users.index)
+        hq_val = df_users[hq_col].astype(str).str.strip().replace(['nan', 'NaN', ''], None) if hq_col in df_users.columns else pd.Series(None, index=df_users.index)
+        div_val = df_users[div_col].astype(str).str.strip().replace(['nan', 'NaN', ''], None) if div_col in df_users.columns else pd.Series(None, index=df_users.index)
+        
+        df_users['부서'] = dept_val.combine_first(hq_val).combine_first(div_val).fillna("")
+
+        hq_series = df_users[hq_col].astype(str).str.strip().fillna("") if hq_col in df_users.columns else pd.Series("", index=df_users.index)
+        div_series = df_users[div_col].astype(str).str.strip().fillna("") if div_col in df_users.columns else pd.Series("", index=df_users.index)
+
+        hq_mask = hq_series.isin(config.DEPT_SHOW_AS_HQ)
+        df_users.loc[hq_mask, '부서_그룹'] = hq_series[hq_mask]
+
+        div_mask = (~hq_mask) & (div_series != "") & (div_series != "nan")
+        df_users.loc[div_mask, '부서_그룹'] = div_series[div_mask]
+
+        fallback_mask = (~hq_mask) & ((div_series == "") | (div_series == "nan"))
+        df_users.loc[fallback_mask, '부서_그룹'] = hq_series[fallback_mask].replace(['nan', ''], 'M-Level')
             
-        df_users = df_users.apply(prepare_master, axis=1)
+        df_users['_ui_dept'] = df_users['부서'].replace('', 'M-Level')
 
     return df_users, df_login, df_download, df_proposal
 
