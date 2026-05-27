@@ -539,36 +539,37 @@ def map_all(df_users, df_login, df_download, df_proposal):
                 df.loc[mask, '직급'] = df.loc[mask, rank_col].astype(str).str.strip().fillna("")
                 
             # 2. 사업부 매핑 (DEPT_SHOW_AS_HQ 그룹은 hqNm 우선 — MICE부문 내 컨벤션/E&E 분리)
+            _null_vals = ['nan', 'NaN', 'None', '']
             if div_col in df.columns:
-                _div_s = df.loc[mask, div_col].astype(str).str.strip()
-                _hq_s  = df.loc[mask, hq_col].astype(str).str.strip() if hq_col in df.columns else pd.Series('', index=df.loc[mask].index)
+                _div_s = df.loc[mask, div_col].astype(str).str.strip().replace(_null_vals, '')
+                _hq_s  = df.loc[mask, hq_col].astype(str).str.strip().replace(_null_vals, '') if hq_col in df.columns else pd.Series('', index=df.loc[mask].index)
                 _hq_ov = _hq_s.isin(config.DEPT_SHOW_AS_HQ)
                 _div_f = _div_s.where(~_hq_ov, _hq_s)
-                df.loc[mask, '사업부'] = _div_f.replace(['nan', 'NaN', ''], '정보미등록').fillna('정보미등록')
-                
+                df.loc[mask, '사업부'] = _div_f.replace('', '정보미등록').fillna('정보미등록')
+
             # 3. 부서 Fallback 일괄 계산 (dept -> hq -> div)
-            dept_val = df.loc[mask, dept_col].astype(str).str.strip().replace(['nan', 'NaN', ''], None) if dept_col in df.columns else pd.Series(None, index=df[mask].index)
-            hq_val = df.loc[mask, hq_col].astype(str).str.strip().replace(['nan', 'NaN', ''], None) if hq_col in df.columns else pd.Series(None, index=df[mask].index)
-            div_val = df.loc[mask, div_col].astype(str).str.strip().replace(['nan', 'NaN', ''], None) if div_col in df.columns else pd.Series(None, index=df[mask].index)
-            
+            dept_val = df.loc[mask, dept_col].astype(str).str.strip().replace(_null_vals, None) if dept_col in df.columns else pd.Series(None, index=df[mask].index)
+            hq_val   = df.loc[mask, hq_col].astype(str).str.strip().replace(_null_vals, None) if hq_col in df.columns else pd.Series(None, index=df[mask].index)
+            div_val  = df.loc[mask, div_col].astype(str).str.strip().replace(_null_vals, None) if div_col in df.columns else pd.Series(None, index=df[mask].index)
+
             fallback_dept = dept_val.combine_first(hq_val).combine_first(div_val).fillna("")
             df.loc[mask, '부서'] = fallback_dept
-            
+
             # 4. 부서_그룹 일괄 계산
-            hq_series = df.loc[mask, hq_col].astype(str).str.strip().fillna("") if hq_col in df.columns else pd.Series("", index=df[mask].index)
-            div_series = df.loc[mask, div_col].astype(str).str.strip().fillna("") if div_col in df.columns else pd.Series("", index=df[mask].index)
-            
+            hq_series  = df.loc[mask, hq_col].astype(str).str.strip().replace(_null_vals, '') if hq_col in df.columns else pd.Series("", index=df[mask].index)
+            div_series = df.loc[mask, div_col].astype(str).str.strip().replace(_null_vals, '') if div_col in df.columns else pd.Series("", index=df[mask].index)
+
             # CP실 / 주최사업실 등 본부명 유지
             hq_mask = hq_series.isin(config.DEPT_SHOW_AS_HQ)
             df.loc[mask & hq_mask, '부서_그룹'] = hq_series[hq_mask]
-            
+
             # 그 외 사업부명 사용
-            div_mask = (~hq_mask) & (div_series != "") & (div_series != "nan")
+            div_mask = (~hq_mask) & (div_series != "")
             df.loc[mask & div_mask, '부서_그룹'] = div_series[div_mask]
-            
+
             # 둘 다 아닌 경우 본부명 fallback (없으면 M-Level)
-            fallback_mask = (~hq_mask) & ((div_series == "") | (div_series == "nan"))
-            df.loc[mask & fallback_mask, '부서_그룹'] = hq_series[fallback_mask].replace(['nan', ''], 'M-Level')
+            fallback_mask = (~hq_mask) & (div_series == "")
+            df.loc[mask & fallback_mask, '부서_그룹'] = hq_series[fallback_mask].replace('', 'M-Level')
 
         # 임원·총괄대표·대표이사는 부서 무관하게 M-Level 처리 (부서별 분석에서 제외)
         _exec_ranks = {'임원', '총괄대표', '대표이사'}
@@ -598,34 +599,36 @@ def map_all(df_users, df_login, df_download, df_proposal):
         df_users['직급'] = ""
         df_users['부서_그룹'] = "M-Level"
 
+        _null_vals = ['nan', 'NaN', 'None', '']
+
         if rank_col in df_users.columns:
-            df_users['직급'] = df_users[rank_col].astype(str).str.strip().fillna("")
-            
+            df_users['직급'] = df_users[rank_col].astype(str).str.strip().replace(_null_vals, '').fillna("")
+
         if div_col in df_users.columns:
             # DEPT_SHOW_AS_HQ 그룹은 hqNm 우선 — MICE부문 내 컨벤션/E&E 분리
-            _div = df_users[div_col].astype(str).str.strip()
-            _hq  = df_users[hq_col].astype(str).str.strip() if hq_col in df_users.columns else pd.Series('', index=df_users.index)
+            _div = df_users[div_col].astype(str).str.strip().replace(_null_vals, '')
+            _hq  = df_users[hq_col].astype(str).str.strip().replace(_null_vals, '') if hq_col in df_users.columns else pd.Series('', index=df_users.index)
             _hq_override = _hq.isin(config.DEPT_SHOW_AS_HQ)
             _div_final   = _div.where(~_hq_override, _hq)
-            df_users['사업부'] = _div_final.replace(['nan', 'NaN', ''], '정보미등록').fillna('정보미등록')
+            df_users['사업부'] = _div_final.replace('', '정보미등록').fillna('정보미등록')
 
-        dept_val = df_users[dept_col].astype(str).str.strip().replace(['nan', 'NaN', ''], None) if dept_col in df_users.columns else pd.Series(None, index=df_users.index)
-        hq_val = df_users[hq_col].astype(str).str.strip().replace(['nan', 'NaN', ''], None) if hq_col in df_users.columns else pd.Series(None, index=df_users.index)
-        div_val = df_users[div_col].astype(str).str.strip().replace(['nan', 'NaN', ''], None) if div_col in df_users.columns else pd.Series(None, index=df_users.index)
-        
+        dept_val = df_users[dept_col].astype(str).str.strip().replace(_null_vals, None) if dept_col in df_users.columns else pd.Series(None, index=df_users.index)
+        hq_val   = df_users[hq_col].astype(str).str.strip().replace(_null_vals, None) if hq_col in df_users.columns else pd.Series(None, index=df_users.index)
+        div_val  = df_users[div_col].astype(str).str.strip().replace(_null_vals, None) if div_col in df_users.columns else pd.Series(None, index=df_users.index)
+
         df_users['부서'] = dept_val.combine_first(hq_val).combine_first(div_val).fillna("")
 
-        hq_series = df_users[hq_col].astype(str).str.strip().fillna("") if hq_col in df_users.columns else pd.Series("", index=df_users.index)
-        div_series = df_users[div_col].astype(str).str.strip().fillna("") if div_col in df_users.columns else pd.Series("", index=df_users.index)
+        hq_series  = df_users[hq_col].astype(str).str.strip().replace(_null_vals, '') if hq_col in df_users.columns else pd.Series("", index=df_users.index)
+        div_series = df_users[div_col].astype(str).str.strip().replace(_null_vals, '') if div_col in df_users.columns else pd.Series("", index=df_users.index)
 
         hq_mask = hq_series.isin(config.DEPT_SHOW_AS_HQ)
         df_users.loc[hq_mask, '부서_그룹'] = hq_series[hq_mask]
 
-        div_mask = (~hq_mask) & (div_series != "") & (div_series != "nan")
+        div_mask = (~hq_mask) & (div_series != "")
         df_users.loc[div_mask, '부서_그룹'] = div_series[div_mask]
 
-        fallback_mask = (~hq_mask) & ((div_series == "") | (div_series == "nan"))
-        df_users.loc[fallback_mask, '부서_그룹'] = hq_series[fallback_mask].replace(['nan', ''], 'M-Level')
+        fallback_mask = (~hq_mask) & (div_series == "")
+        df_users.loc[fallback_mask, '부서_그룹'] = hq_series[fallback_mask].replace('', 'M-Level')
 
         # 임원·총괄대표·대표이사는 부서 무관하게 M-Level 처리 (부서별 분석·명부 표시에서 제외)
         _exec_ranks = {'임원', '총괄대표', '대표이사'}
