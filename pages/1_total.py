@@ -265,9 +265,10 @@ col_t1, col_t2, col_t3, col_t4 = st.columns(4)
 table_height = 210
 
 def _num_center(df):
-    """숫자형 컬럼 가운데 정렬 Styler"""
+    """숫자형 컬럼 가운데 정렬 + 사용률 소수점 2자리 포맷 Styler"""
     num_cols = df.select_dtypes(include='number').columns.tolist()
-    return df.style.set_properties(subset=num_cols, **{'text-align': 'center'})
+    fmt = {col: '{:.2f}' for col in num_cols if '사용률' in col}
+    return df.style.set_properties(subset=num_cols, **{'text-align': 'center'}).format(fmt)
 
 with col_t1:
     st.markdown("##### 부서별 로그인 TOP5")
