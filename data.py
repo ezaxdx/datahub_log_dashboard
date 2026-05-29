@@ -660,6 +660,14 @@ def map_all(df_users, df_login, df_download, df_proposal):
             df_users.loc[_test_mask, '부서_그룹'] = 'Test'
             df_users.loc[_test_mask, '_ui_dept']  = 'Test'
 
+    # 비표준 직급 → 표준 직급 정규화 (config.RANK_NORMALIZE)
+    # df_users·로그 전체에 일괄 적용 → 피벗·직급그룹·명부 모두 반영
+    _rank_normalize = getattr(config, 'RANK_NORMALIZE', {})
+    if _rank_normalize:
+        for _df in [df_users, df_login, df_download, df_proposal]:
+            if not _df.empty and '직급' in _df.columns:
+                _df['직급'] = _df['직급'].replace(_rank_normalize)
+
     return df_users, df_login, df_download, df_proposal
 
 # --- [preprocess 블록] ---
