@@ -210,13 +210,13 @@ with col_rank_main:
             y='횟수',
             color='횟수',
             color_continuous_scale=['#f1f5f9', '#0f172a'],
-            text='사용률',
+            text='횟수',
             custom_data=['전체인원', '사용률']
         )
-        
+
         fig_rank.update_traces(
             hovertemplate="<b>%{x}</b><br>활동량: %{y}건<br>소속인원: %{customdata[0]}명<br><b>사용률: %{customdata[1]}%</b>",
-            texttemplate="%{text}%", textposition="outside", cliponaxis=False
+            texttemplate="%{text}건", textposition="outside", cliponaxis=False
         )
         
         # 회사 평균선 (직급당 평균)
