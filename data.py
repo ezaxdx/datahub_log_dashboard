@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import gspread
 from google.oauth2.service_account import Credentials
-from datetime import datetime
+from datetime import datetime, date as _date
 import config
 
 # 자체 서명 인증서 환경에서 urllib3 InsecureRequestWarning 억제
@@ -145,7 +145,9 @@ def _build_users_df(records: list) -> pd.DataFrame:
             "PRS ID":   str(r.get("prsId", "")).strip().lower(),
             "입사일자":  r.get("hireDt", ""),
             "퇴사일자":  retire_dt,                          # 재직 중이면 ""
-            "재직상태":  "퇴사" if retire_dt else "재직",    # 필터·표시용
+            # 퇴사일이 오늘 이전(당일 포함)일 때만 퇴사 처리
+            # → 미래 날짜가 입력된 예정자는 퇴사일 당일까지 재직자로 표시
+            "재직상태":  "퇴사" if retire_dt and retire_dt <= _date.today().isoformat() else "재직",
         }
 
         # history[] 평탄화: 연도별 소속·직급 이력 → {year}_컬럼명
