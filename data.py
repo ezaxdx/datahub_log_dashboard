@@ -556,19 +556,25 @@ def map_all(df_users, df_login, df_download, df_proposal):
             df.loc[mask, '부서'] = fallback_dept
 
             # 4. 부서_그룹 일괄 계산
+            dept_series_g = df.loc[mask, dept_col].astype(str).str.strip().replace(_null_vals, '') if dept_col in df.columns else pd.Series("", index=df[mask].index)
             hq_series  = df.loc[mask, hq_col].astype(str).str.strip().replace(_null_vals, '') if hq_col in df.columns else pd.Series("", index=df[mask].index)
             div_series = df.loc[mask, div_col].astype(str).str.strip().replace(_null_vals, '') if div_col in df.columns else pd.Series("", index=df[mask].index)
 
+            # 팀 단위 직접 표시 (DEPT_SHOW_AS_TEAM — deptNm 우선, hqNm보다 앞서 처리)
+            _show_as_team = getattr(config, 'DEPT_SHOW_AS_TEAM', [])
+            team_mask = dept_series_g.isin(_show_as_team)
+            df.loc[mask & team_mask, '부서_그룹'] = dept_series_g[team_mask]
+
             # CP실 / 주최사업실 등 본부명 유지
-            hq_mask = hq_series.isin(config.DEPT_SHOW_AS_HQ)
+            hq_mask = (~team_mask) & hq_series.isin(config.DEPT_SHOW_AS_HQ)
             df.loc[mask & hq_mask, '부서_그룹'] = hq_series[hq_mask]
 
             # 그 외 사업부명 사용
-            div_mask = (~hq_mask) & (div_series != "")
+            div_mask = (~team_mask) & (~hq_mask) & (div_series != "")
             df.loc[mask & div_mask, '부서_그룹'] = div_series[div_mask]
 
             # 둘 다 아닌 경우 본부명 fallback (없으면 M-Level)
-            fallback_mask = (~hq_mask) & (div_series == "")
+            fallback_mask = (~team_mask) & (~hq_mask) & (div_series == "")
             df.loc[mask & fallback_mask, '부서_그룹'] = hq_series[fallback_mask].replace('', 'M-Level')
 
         # 임원·총괄대표·대표이사는 부서 무관하게 M-Level 처리 (부서별 분석에서 제외)
@@ -618,16 +624,22 @@ def map_all(df_users, df_login, df_download, df_proposal):
 
         df_users['부서'] = dept_val.combine_first(hq_val).combine_first(div_val).fillna("")
 
+        dept_series_g = df_users[dept_col].astype(str).str.strip().replace(_null_vals, '') if dept_col in df_users.columns else pd.Series("", index=df_users.index)
         hq_series  = df_users[hq_col].astype(str).str.strip().replace(_null_vals, '') if hq_col in df_users.columns else pd.Series("", index=df_users.index)
         div_series = df_users[div_col].astype(str).str.strip().replace(_null_vals, '') if div_col in df_users.columns else pd.Series("", index=df_users.index)
 
-        hq_mask = hq_series.isin(config.DEPT_SHOW_AS_HQ)
+        # 팀 단위 직접 표시 (DEPT_SHOW_AS_TEAM — deptNm 우선)
+        _show_as_team = getattr(config, 'DEPT_SHOW_AS_TEAM', [])
+        team_mask = dept_series_g.isin(_show_as_team)
+        df_users.loc[team_mask, '부서_그룹'] = dept_series_g[team_mask]
+
+        hq_mask = (~team_mask) & hq_series.isin(config.DEPT_SHOW_AS_HQ)
         df_users.loc[hq_mask, '부서_그룹'] = hq_series[hq_mask]
 
-        div_mask = (~hq_mask) & (div_series != "")
+        div_mask = (~team_mask) & (~hq_mask) & (div_series != "")
         df_users.loc[div_mask, '부서_그룹'] = div_series[div_mask]
 
-        fallback_mask = (~hq_mask) & (div_series == "")
+        fallback_mask = (~team_mask) & (~hq_mask) & (div_series == "")
         df_users.loc[fallback_mask, '부서_그룹'] = hq_series[fallback_mask].replace('', 'M-Level')
 
         # 임원·총괄대표·대표이사는 부서 무관하게 M-Level 처리 (부서별 분석·명부 표시에서 제외)
