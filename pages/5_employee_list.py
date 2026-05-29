@@ -49,6 +49,16 @@ else:
     f_user_list = df_u.copy()
 
 # --- 3. 데이터 표시 ---
+# sort_cols를 if 블록 밖에서 미리 초기화 (expander에서도 참조하므로 스코프 보장)
+sort_cols = []
+for col in [
+    config.YEAR_COL_DEPT.format(year=config.CURRENT_YEAR),
+    config.YEAR_COL_HQ.format(year=config.CURRENT_YEAR),
+    config.YEAR_COL_DIVISION.format(year=config.CURRENT_YEAR),
+]:
+    if col in df_u.columns:
+        sort_cols.append(col)
+
 if not f_user_list.empty:
     cnt_active  = len(df_u[df_u['재직상태'] == '재직']) if '재직상태' in df_u.columns else len(df_u)
     cnt_retired = len(df_u[df_u['재직상태'] == '퇴사']) if '재직상태' in df_u.columns else 0
@@ -65,15 +75,7 @@ if not f_user_list.empty:
 
     st.markdown(f'<div class="headline" style="font-size: 20px; font-weight: 800; color: #1e293b; margin-bottom: 16px;">👥 임직원 목록 <span style="font-size: 14px; font-weight: 400; color: #64748b; margin-left: 8px;">(표시 {len(f_user_list):,}명)</span></div>', unsafe_allow_html=True)
 
-    # 기본 정렬: 팀(부서명) → 본부/실 → 사업부
-    sort_cols = []
-    for col in [
-        config.YEAR_COL_DEPT.format(year=config.CURRENT_YEAR),
-        config.YEAR_COL_HQ.format(year=config.CURRENT_YEAR),
-        config.YEAR_COL_DIVISION.format(year=config.CURRENT_YEAR),
-    ]:
-        if col in f_user_list.columns:
-            sort_cols.append(col)
+    # 기본 정렬: 팀(부서명) → 본부/실 → 사업부 (sort_cols는 위에서 이미 계산됨)
     if sort_cols:
         f_user_list = f_user_list.sort_values(sort_cols, na_position='last').reset_index(drop=True)
 

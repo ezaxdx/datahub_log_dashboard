@@ -45,8 +45,6 @@ def filter_data(df):
                 res = res[res['date'].dt.date >= date_range[0]]
     if sel_dept and '부서' in res.columns:
         res = res[res['부서'].isin(sel_dept)]
-    elif sel_dept and '부서' in res.columns: # df_users용
-        res = res[res['부서'].isin(sel_dept)]
     
     if sel_rank and '직급그룹' in res.columns:
         res = res[res['직급그룹'].isin(sel_rank)]

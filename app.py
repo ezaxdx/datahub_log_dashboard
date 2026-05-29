@@ -289,8 +289,8 @@ with st.sidebar.expander("🔍 Filter View", expanded=False):
             sel_dept = st.multiselect("부서명", options=all_depts, default=valid_sel_dept)
         with col_dept2:
             if st.button("전체", key="dept_select_all"):
-                sel_dept = all_depts
-                st.rerun() # 전체 선택 시 즉시 반영
+                st.session_state['sel_dept'] = all_depts  # rerun 전 session_state 먼저 갱신
+                st.rerun()
         
         st.session_state['sel_dept'] = sel_dept
         
