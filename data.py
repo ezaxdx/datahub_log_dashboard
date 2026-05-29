@@ -651,12 +651,12 @@ def map_all(df_users, df_login, df_download, df_proposal):
         # 임원 직급은 명부에서도 M-Level로 표시
         df_users.loc[exec_mask, '_ui_dept'] = 'M-Level'
 
-        # 테스트/관리자 계정은 부서_그룹·_ui_dept 모두 '테스트 계정'으로 표시
+        # 테스트/관리자 계정은 부서_그룹·_ui_dept 모두 'Test'로 표시
         _test_unos_map = set(str(u).zfill(3) for u in getattr(config, 'TEST_ACCOUNT_USERNOS', []))
         if _test_unos_map and 'UserNo' in df_users.columns:
             _test_mask = df_users['UserNo'].isin(_test_unos_map)
-            df_users.loc[_test_mask, '부서_그룹'] = '테스트 계정'
-            df_users.loc[_test_mask, '_ui_dept']  = '테스트 계정'
+            df_users.loc[_test_mask, '부서_그룹'] = 'Test'
+            df_users.loc[_test_mask, '_ui_dept']  = 'Test'
 
     return df_users, df_login, df_download, df_proposal
 
@@ -729,7 +729,7 @@ def run_all():
     # UserNo 정규화 함수
     def _norm_uno(s): return str(s).strip().replace('.0', '').zfill(3)
 
-    # 테스트 계정 UserNo (config에서 로드) → 로그 제외 + 명부 '테스트 계정' 표시
+    # 테스트 계정 UserNo (config에서 로드) → 로그 제외 + 명부 'Test'로 표시
     _test_unos = set(_norm_uno(u) for u in getattr(config, 'TEST_ACCOUNT_USERNOS', []))
     # 완전 제외 대상 → df_users + 로그 모두 제거 (명부에도 안 보임)
     _exclude_unos = set(_norm_uno(u) for u in getattr(config, 'DEFAULT_EXCLUDE_USERNO', []))
