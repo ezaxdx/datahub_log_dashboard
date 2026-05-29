@@ -1,7 +1,7 @@
 import streamlit as st
 # Force redeploy: 2026-05-06 17:10
 import pandas as pd
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date as date_type
 import config
 import data
 import os
@@ -231,8 +231,22 @@ with st.sidebar.expander("🔍 Filter View", expanded=False):
     
     date_range = None
     if date_preset == "직접 지정":
-        # 직접 지정 날짜 유지 로직
-        saved_range = st.session_state.get('date_range', [today - timedelta(days=7), today])
+        # 직접 지정 날짜 유지 로직 (None·비정상 타입 방어)
+        _saved = st.session_state.get('date_range', None)
+        if isinstance(_saved, (list, tuple)) and len(_saved) >= 1:
+            # Timestamp·datetime → date 변환 (Streamlit Cloud 직렬화 대응)
+            def _to_date(v):
+                try:
+                    if hasattr(v, 'date') and callable(v.date):
+                        return v.date()
+                    if isinstance(v, date_type):
+                        return v
+                    return date_type.fromisoformat(str(v)[:10])
+                except Exception:
+                    return today
+            saved_range = [_to_date(v) for v in _saved]
+        else:
+            saved_range = [today - timedelta(days=7), today]
         raw = st.date_input("조회 기간", saved_range)
         # st.date_input은 날짜 1개 선택 시 datetime.date, 2개 선택 시 tuple을 반환.
         # 모든 페이지가 list로 일관되게 받을 수 있도록 여기서 한 번만 정규화.
