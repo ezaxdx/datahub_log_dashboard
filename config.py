@@ -37,7 +37,14 @@ SHEET_NAME_PROPOSAL = "제안서_ezPDF"
 
 # 사이드바 기본 제외 대상 (초기 선택에서 제외, Select All 시 포함)
 DEFAULT_EXCLUDE_DEPTS = ["AXDX팀", "ICT융합개발본부"]
-DEFAULT_EXCLUDE_USERNO = ["곽은경_280"]
+DEFAULT_EXCLUDE_USERNO = ["280"]   # 곽은경 UserNo
+
+# 테스트/관리자 계정 UserNo 목록
+# - 로그(로그인·다운로드·제안서)에서 완전 제외
+# - 직원 명부에서는 '테스트 계정' 부서로 표시
+TEST_ACCOUNT_USERNOS = ["007", "484", "514", "527", "556"]
+# 007: 마스터관리자  484: 연구소업무활동  514: 마스터관리자2
+# 527: 신규임원(사업부장)OT용  556: AXDX 테스트 계정
 
 # 제안서 열람 로그 제외 계정 (구축·테스트용 계정)
 # userNm 또는 prsId 가 아래 값과 일치하는 레코드를 제외

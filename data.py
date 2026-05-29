@@ -651,6 +651,13 @@ def map_all(df_users, df_login, df_download, df_proposal):
         # 임원 직급은 명부에서도 M-Level로 표시
         df_users.loc[exec_mask, '_ui_dept'] = 'M-Level'
 
+        # 테스트/관리자 계정은 부서_그룹·_ui_dept 모두 '테스트 계정'으로 표시
+        _test_unos_map = set(str(u).zfill(3) for u in getattr(config, 'TEST_ACCOUNT_USERNOS', []))
+        if _test_unos_map and 'UserNo' in df_users.columns:
+            _test_mask = df_users['UserNo'].isin(_test_unos_map)
+            df_users.loc[_test_mask, '부서_그룹'] = '테스트 계정'
+            df_users.loc[_test_mask, '_ui_dept']  = '테스트 계정'
+
     return df_users, df_login, df_download, df_proposal
 
 # --- [preprocess 블록] ---
@@ -719,21 +726,29 @@ def run_all():
     """
     df_users, df_login, df_download, df_proposal = load_all()
     
-    # [기본 제외 대상 제거] 테스트 계정 및 특정 유저 (config.DEFAULT_EXCLUDE_USERNO)
-    def exclude_users(df):
-        if df.empty or 'UserNo' not in df.columns: return df
-        # 정규화하여 비교
-        def norm(s): return str(s).strip().replace('.0', '').zfill(3)
-        excluded_norm = [norm(u) for u in config.DEFAULT_EXCLUDE_USERNO]
-        # 기존 테스트 계정 556도 함께 체크
-        excluded_norm.append('556')
-        
-        return df[~df['UserNo'].apply(norm).isin(excluded_norm)]
+    # UserNo 정규화 함수
+    def _norm_uno(s): return str(s).strip().replace('.0', '').zfill(3)
 
-    df_users = exclude_users(df_users)
-    df_login = exclude_users(df_login)
-    df_download = exclude_users(df_download)
-    df_proposal = exclude_users(df_proposal)
+    # 테스트 계정 UserNo (config에서 로드)
+    _test_unos = set(_norm_uno(u) for u in getattr(config, 'TEST_ACCOUNT_USERNOS', []))
+    # 완전 제외 대상 (사이드바 필터 기준 + 곽은경 등)
+    _exclude_unos = set(_norm_uno(u) for u in config.DEFAULT_EXCLUDE_USERNO)
+
+    # 로그 데이터에서 테스트 계정 + 완전 제외 계정 모두 제거
+    def exclude_from_logs(df):
+        if df.empty or 'UserNo' not in df.columns: return df
+        remove = _test_unos | _exclude_unos
+        return df[~df['UserNo'].apply(_norm_uno).isin(remove)]
+
+    # df_users에서는 완전 제외 계정만 제거 (테스트 계정은 명부에 '테스트 계정'으로 유지)
+    def exclude_from_users(df):
+        if df.empty or 'UserNo' not in df.columns: return df
+        return df[~df['UserNo'].apply(_norm_uno).isin(_exclude_unos)]
+
+    df_users   = exclude_from_users(df_users)
+    df_login   = exclude_from_logs(df_login)
+    df_download = exclude_from_logs(df_download)
+    df_proposal = exclude_from_logs(df_proposal)
     
     # Preprocess (날짜/연도 추출)
     df_users, df_login, df_download, df_proposal = preprocess_all(df_users, df_login, df_download, df_proposal)
