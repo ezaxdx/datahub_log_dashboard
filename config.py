@@ -36,8 +36,20 @@ SHEET_NAME_DOWNLOAD = "download"
 SHEET_NAME_PROPOSAL = "제안서_ezPDF"
 
 # 사이드바 기본 제외 대상 (초기 선택에서 제외, Select All 시 포함)
-DEFAULT_EXCLUDE_DEPTS = ["AXDX팀", "ICT융합개발본부"]
-DEFAULT_EXCLUDE_USERNO = ["280"]   # 곽은경 UserNo
+DEFAULT_EXCLUDE_DEPTS = [
+    "AXDX팀",           # 내부 운영팀
+    "ICT융합개발본부",    # 내부 개발팀
+    "M-Level",          # 임원·정보미등록
+    "MICE혁신본부",      # 본부장(곽은경) — 명부에는 표시, 카운팅 제외
+    "㈜이즈피엠피",      # 계열사 (류두영 팀장)
+    "테스트 계정",        # 테스트·관리자 계정
+]
+
+# 완전 제외 대상 (df_users + 로그 모두 제거 → 명부에도 안 보임)
+DEFAULT_EXCLUDE_USERNO = []
+
+# 로그에서만 제외 (df_users 유지 → 명부에 보임, 사용 카운팅 제외)
+LOG_EXCLUDE_USERNOS = ["280"]   # 곽은경 (MICE혁신본부 본부장)
 
 # 테스트/관리자 계정 UserNo 목록
 # - 로그(로그인·다운로드·제안서)에서 완전 제외

@@ -729,18 +729,20 @@ def run_all():
     # UserNo 정규화 함수
     def _norm_uno(s): return str(s).strip().replace('.0', '').zfill(3)
 
-    # 테스트 계정 UserNo (config에서 로드)
+    # 테스트 계정 UserNo (config에서 로드) → 로그 제외 + 명부 '테스트 계정' 표시
     _test_unos = set(_norm_uno(u) for u in getattr(config, 'TEST_ACCOUNT_USERNOS', []))
-    # 완전 제외 대상 (사이드바 필터 기준 + 곽은경 등)
-    _exclude_unos = set(_norm_uno(u) for u in config.DEFAULT_EXCLUDE_USERNO)
+    # 완전 제외 대상 → df_users + 로그 모두 제거 (명부에도 안 보임)
+    _exclude_unos = set(_norm_uno(u) for u in getattr(config, 'DEFAULT_EXCLUDE_USERNO', []))
+    # 로그 전용 제외 → df_users 유지 (명부에 보임), 사용 카운팅만 제외
+    _log_exclude_unos = set(_norm_uno(u) for u in getattr(config, 'LOG_EXCLUDE_USERNOS', []))
 
-    # 로그 데이터에서 테스트 계정 + 완전 제외 계정 모두 제거
+    # 로그 데이터에서 테스트 계정 + 완전 제외 + 로그 전용 제외 모두 제거
     def exclude_from_logs(df):
         if df.empty or 'UserNo' not in df.columns: return df
-        remove = _test_unos | _exclude_unos
+        remove = _test_unos | _exclude_unos | _log_exclude_unos
         return df[~df['UserNo'].apply(_norm_uno).isin(remove)]
 
-    # df_users에서는 완전 제외 계정만 제거 (테스트 계정은 명부에 '테스트 계정'으로 유지)
+    # df_users에서는 완전 제외 계정만 제거 (테스트·로그 전용 제외는 명부에 유지)
     def exclude_from_users(df):
         if df.empty or 'UserNo' not in df.columns: return df
         return df[~df['UserNo'].apply(_norm_uno).isin(_exclude_unos)]
