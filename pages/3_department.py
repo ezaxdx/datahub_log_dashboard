@@ -147,12 +147,12 @@ fig_dept = px.bar(
     y='횟수', 
     color='횟수',
     color_continuous_scale=['#f1f5f9', '#0f172a'],
-    text='사용률',
+    text='횟수',
     custom_data=['전체인원', '인원대비활동', '순사용자', '사용률']
 )
 fig_dept.update_traces(
     hovertemplate="<b>%{x}</b><br>활동량: %{y}건<br>소속인원: %{customdata[0]}명<br>순사용자: %{customdata[2]}명<br><b>사용률: %{customdata[3]}%</b><br>인당 활동량: %{customdata[1]}건",
-    texttemplate="%{text}%", textposition="outside", cliponaxis=False
+    texttemplate="%{text}건", textposition="outside", cliponaxis=False
 )
 
 # 회사 평균선 (부서당 평균 활동량)
@@ -211,11 +211,11 @@ with col_rank_main:
             color='횟수',
             color_continuous_scale=['#f1f5f9', '#0f172a'],
             text='횟수',
-            custom_data=['전체인원', '사용률']
+            custom_data=['전체인원', '사용률', '순사용자']
         )
 
         fig_rank.update_traces(
-            hovertemplate="<b>%{x}</b><br>활동량: %{y}건<br>소속인원: %{customdata[0]}명<br><b>사용률: %{customdata[1]}%</b>",
+            hovertemplate="<b>%{x}</b><br>활동량: %{y}건<br>소속인원: %{customdata[0]}명<br>순사용자: %{customdata[2]}명<br><b>사용률: %{customdata[1]}%</b>",
             texttemplate="%{text}건", textposition="outside", cliponaxis=False
         )
         
