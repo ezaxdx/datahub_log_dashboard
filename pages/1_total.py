@@ -223,9 +223,12 @@ login_dept_top5 = (
 login_dept_top5.index += 1
 login_dept_top5.index.name = 'NO.'
 
-# 2. 사업부별 사용률 TOP5
-active_by_div = active_users_all.groupby('사업부')['UserNo'].nunique().reset_index(name='순사용자')
-total_users_div = f_u_active.groupby('사업부')['UserNo'].nunique().reset_index(name='전체인원')
+# 2. 사업부별 사용률 TOP5 (빈 사업부·정보미등록 제외)
+_null_divs = {'', 'nan', 'NaN', 'None', '정보미등록'}
+_active_div = active_users_all[~active_users_all['사업부'].astype(str).str.strip().isin(_null_divs)]
+_fu_div     = f_u_active[~f_u_active['사업부'].astype(str).str.strip().isin(_null_divs)]
+active_by_div = _active_div.groupby('사업부')['UserNo'].nunique().reset_index(name='순사용자')
+total_users_div = _fu_div.groupby('사업부')['UserNo'].nunique().reset_index(name='전체인원')
 usage_div = pd.merge(total_users_div, active_by_div, on='사업부', how='left').fillna(0)
 usage_div['전체인원'] = usage_div['전체인원'].astype(int)
 usage_div['순사용자'] = usage_div['순사용자'].astype(int)
@@ -249,9 +252,12 @@ login_rank_all = (
 login_rank_all.index += 1
 login_rank_all.index.name = 'NO.'
 
-# 4. 직급별 사용률 현황
-active_by_rank = active_users_all.groupby('직급')['UserNo'].nunique().reset_index(name='순사용자')
-total_users_rank = f_u_active.groupby('직급')['UserNo'].nunique().reset_index(name='전체인원')
+# 4. 직급별 사용률 현황 (빈 직급·정보미등록 제외)
+_null_ranks = {'', 'nan', 'NaN', 'None', '정보미등록'}
+_active_rank = active_users_all[~active_users_all['직급'].astype(str).str.strip().isin(_null_ranks)]
+_fu_rank     = f_u_active[~f_u_active['직급'].astype(str).str.strip().isin(_null_ranks)]
+active_by_rank = _active_rank.groupby('직급')['UserNo'].nunique().reset_index(name='순사용자')
+total_users_rank = _fu_rank.groupby('직급')['UserNo'].nunique().reset_index(name='전체인원')
 usage_rank = pd.merge(total_users_rank, active_by_rank, on='직급', how='left').fillna(0)
 usage_rank['전체인원'] = usage_rank['전체인원'].astype(int)
 usage_rank['순사용자'] = usage_rank['순사용자'].astype(int)
