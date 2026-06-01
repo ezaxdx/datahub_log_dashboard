@@ -83,6 +83,8 @@ f_login = filter_data(df_login, c_s, c_e)
 f_download = filter_data(df_download, c_s, c_e)
 f_proposal = filter_data(df_proposal, c_s, c_e)
 f_u = filter_data(df_u) # 유저는 기간 필터 제외
+# 사용률 분모용: 재직자만 (퇴사자는 분모에서 제외)
+f_u_active = f_u[f_u['재직상태'] == '재직'].copy() if '재직상태' in f_u.columns else f_u.copy()
 
 # 이전 기간 데이터 (증감 계산용)
 p_login = filter_data(df_login, p_s, p_e)
@@ -203,7 +205,9 @@ with col_mid_right:
 # --- 6. 하단 2행 (부서/직급별 사용량 및 사용률 분석 - TOP5 표 교체) ---
 st.markdown("<div style='height: 5px;'></div>", unsafe_allow_html=True)
 
-# 데이터 준비 (분모를 f_u 기준으로 통일)
+# 데이터 준비
+# 순사용자: 제안서 OR 일반 다운로드 기록 있는 유니크 UserNo (날짜필터 적용, 퇴사자 포함)
+# 전체인원: 재직자만 기준 (f_u_active) — 퇴사자는 분모에서 제외
 active_p = f_proposal[['UserNo', '부서', '사업부', '직급']]
 active_d = f_download[f_download['경로 메뉴명'].astype(str).str.contains('프로젝트|운영자료|서포트', na=False)][['UserNo', '부서', '사업부', '직급']]
 active_users_all = pd.concat([active_p, active_d]).drop_duplicates(subset=['UserNo'])
@@ -219,9 +223,9 @@ login_dept_top5 = (
 login_dept_top5.index += 1
 login_dept_top5.index.name = 'NO.'
 
-# 2. 사업부별 사용률 TOP5 (변경: 부서 -> 사업부)
+# 2. 사업부별 사용률 TOP5
 active_by_div = active_users_all.groupby('사업부')['UserNo'].nunique().reset_index(name='순사용자')
-total_users_div = f_u.groupby('사업부')['UserNo'].nunique().reset_index(name='전체인원')
+total_users_div = f_u_active.groupby('사업부')['UserNo'].nunique().reset_index(name='전체인원')
 usage_div = pd.merge(total_users_div, active_by_div, on='사업부', how='left').fillna(0)
 usage_div['전체인원'] = usage_div['전체인원'].astype(int)
 usage_div['순사용자'] = usage_div['순사용자'].astype(int)
@@ -247,7 +251,7 @@ login_rank_all.index.name = 'NO.'
 
 # 4. 직급별 사용률 현황
 active_by_rank = active_users_all.groupby('직급')['UserNo'].nunique().reset_index(name='순사용자')
-total_users_rank = f_u.groupby('직급')['UserNo'].nunique().reset_index(name='전체인원')
+total_users_rank = f_u_active.groupby('직급')['UserNo'].nunique().reset_index(name='전체인원')
 usage_rank = pd.merge(total_users_rank, active_by_rank, on='직급', how='left').fillna(0)
 usage_rank['전체인원'] = usage_rank['전체인원'].astype(int)
 usage_rank['순사용자'] = usage_rank['순사용자'].astype(int)
