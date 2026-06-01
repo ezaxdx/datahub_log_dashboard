@@ -730,10 +730,10 @@ def map_all(df_users, df_login, df_download, df_proposal):
                 elif _eh:
                     _grp = _eh
                 else:
-                    _grp = 'M-Level'
+                    _grp = ''  # API에 history 데이터 없는 퇴사자 → M-Level 대신 빈 값
 
                 df_users.at[_idx, '부서_그룹'] = _grp
-                df_users.at[_idx, '_ui_dept']  = _dept_val if _dept_val else _grp
+                df_users.at[_idx, '_ui_dept']  = _dept_val or _grp or ''
 
     # 비표준 직급 → 표준 직급 정규화 (config.RANK_NORMALIZE)
     # df_users·로그 전체에 일괄 적용 → 피벗·직급그룹·명부 모두 반영
