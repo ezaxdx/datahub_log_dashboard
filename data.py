@@ -81,7 +81,10 @@ def _paginate(endpoint_path, method="POST", payload=None, label=""):
                                     verify=verify_ssl, timeout=30)
 
             if resp.status_code != 200:
-                st.warning(f"[{label}] API 오류 (HTTP {resp.status_code}) — {url}")
+                _msg = f"[{label}] API 오류 (HTTP {resp.status_code}) — {url}"
+                print(_msg)
+                try: st.warning(_msg)
+                except: pass
                 break
 
             j = resp.json()
@@ -112,7 +115,10 @@ def _paginate(endpoint_path, method="POST", payload=None, label=""):
             page += 1
 
         except Exception as e:
-            st.warning(f"[{label}] API 호출 실패 (page={page}): {e}")
+            _msg = f"[{label}] API 호출 실패 (page={page}): {e}"
+            print(_msg)
+            try: st.warning(_msg)
+            except: pass
             break
 
     return all_records
@@ -462,7 +468,10 @@ def load_all():
             if "No" in df_users.columns:
                 df_users = df_users.drop(columns=["No"])
     except Exception as e:
-        st.warning(f"직원정보 로드 실패: {e}")
+        _msg = f"직원정보 로드 실패: {e}"
+        print(_msg)
+        try: st.warning(_msg)
+        except: pass
 
     return df_users, df_login, df_download, df_proposal
 
