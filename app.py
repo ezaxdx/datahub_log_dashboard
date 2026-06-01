@@ -247,29 +247,31 @@ with st.sidebar.expander("🔍 Filter View", expanded=False):
     
     date_range = None
     if date_preset == "직접 지정":
-        # 직접 지정 날짜 유지 로직 (None·비정상 타입 방어)
+        # 이전 선택값 복원 (None·비정상 타입 방어)
         _saved = st.session_state.get('date_range', None)
-        if isinstance(_saved, (list, tuple)) and len(_saved) >= 1:
-            # Timestamp·datetime → date 변환 (Streamlit Cloud 직렬화 대응)
-            def _to_date(v):
-                try:
-                    if hasattr(v, 'date') and callable(v.date):
-                        return v.date()
-                    if isinstance(v, date_type):
-                        return v
-                    return date_type.fromisoformat(str(v)[:10])
-                except Exception:
-                    return today
-            saved_range = [_to_date(v) for v in _saved]
+        def _to_date(v):
+            try:
+                if hasattr(v, 'date') and callable(v.date): return v.date()
+                if isinstance(v, date_type): return v
+                return date_type.fromisoformat(str(v)[:10])
+            except Exception:
+                return today
+        if isinstance(_saved, (list, tuple)) and len(_saved) >= 2:
+            _def_start, _def_end = _to_date(_saved[0]), _to_date(_saved[1])
         else:
-            saved_range = [today - timedelta(days=7), today]
-        raw = st.date_input("조회 기간", saved_range)
-        # st.date_input은 날짜 1개 선택 시 datetime.date, 2개 선택 시 tuple을 반환.
-        # 모든 페이지가 list로 일관되게 받을 수 있도록 여기서 한 번만 정규화.
-        if isinstance(raw, (list, tuple)):
-            date_range = list(raw)
-        else:
-            date_range = [raw]   # 단일 날짜 선택 시 → [date]
+            _def_start, _def_end = today - timedelta(days=7), today
+
+        # 시작일 / 종료일 개별 선택 (범위 선택보다 클릭이 쉬움)
+        _col_s, _col_e = st.columns(2)
+        with _col_s:
+            _start = st.date_input("시작일", value=_def_start, key="date_start")
+        with _col_e:
+            _end = st.date_input("종료일", value=_def_end, key="date_end")
+
+        # 시작일 > 종료일이면 자동 교정
+        if _start > _end:
+            _end = _start
+        date_range = [_start, _end]
     elif date_preset == "최근 1주일":
         date_range = [today - timedelta(days=7), today]
     elif date_preset == "오늘":
