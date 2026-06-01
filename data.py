@@ -151,6 +151,7 @@ def _build_users_df(records: list) -> pd.DataFrame:
         }
 
         # history[] 평탄화: 연도별 소속·직급 이력 → {year}_컬럼명
+        history_by_year: dict[int, dict] = {}
         for h in r.get("history", []):
             year = str(h.get("year", "")).strip()
             if not year:
@@ -159,6 +160,29 @@ def _build_users_df(records: list) -> pd.DataFrame:
             row[f"{year}_본부/실"]   = h.get("hqNm", "")
             row[f"{year}_사업부"]    = h.get("divisionNm", "")
             row[f"{year}_통계 직급"] = h.get("statPositionNm", "")
+            try:
+                history_by_year[int(year)] = h
+            except ValueError:
+                pass
+
+        # ── 유효 연도(effective year) 결정 ─────────────────────────────
+        # 퇴사자: 퇴사년도 이하 최근 history → 마지막 소속 기준 부서·직급 표시
+        # 재직자: CURRENT_YEAR 이하 최근 history (통상 CURRENT_YEAR)
+        # ※ 이 _eff_* 컬럼은 명부 표시 전용 — 로그 조인에는 사용하지 않음
+        if retire_dt:
+            try:
+                eff_cap = min(int(retire_dt[:4]), config.CURRENT_YEAR)
+            except (ValueError, IndexError):
+                eff_cap = config.CURRENT_YEAR
+        else:
+            eff_cap = config.CURRENT_YEAR
+
+        _valid = [y for y in history_by_year if y <= eff_cap]
+        eff_h  = history_by_year[max(_valid)] if _valid else {}
+        row['_eff_deptNm'] = (eff_h.get('deptNm')         or '').strip()
+        row['_eff_hqNm']   = (eff_h.get('hqNm')           or '').strip()
+        row['_eff_divNm']  = (eff_h.get('divisionNm')     or '').strip()
+        row['_eff_rankNm'] = (eff_h.get('statPositionNm') or '').strip()
 
         rows.append(row)
 
@@ -659,6 +683,57 @@ def map_all(df_users, df_login, df_download, df_proposal):
             _test_mask = df_users['UserNo'].isin(_test_unos_map)
             df_users.loc[_test_mask, '부서_그룹'] = 'Test'
             df_users.loc[_test_mask, '_ui_dept']  = 'Test'
+
+        # ── 퇴사자 부서·직급 fallback ────────────────────────────────────
+        # CURRENT_YEAR history가 없는 퇴사자(전년도 이전 퇴사)는 부서='' → M-Level이 됨
+        # _eff_* 컬럼(퇴사년도 기준 가장 최근 history)으로 부서·직급 재계산
+        # ※ 로그 조인은 active_users(재직자) 기준이므로 퇴사자 로그 기록에는 영향 없음
+        if '_eff_deptNm' in df_users.columns and '재직상태' in df_users.columns:
+            _null_set   = {'', 'nan', 'NaN', 'None'}
+            _rank_norm  = getattr(config, 'RANK_NORMALIZE', {})
+            _show_team  = set(getattr(config, 'DEPT_SHOW_AS_TEAM', []))
+            _show_hq_s  = set(config.DEPT_SHOW_AS_HQ)
+
+            # 퇴사자 중 부서가 비어있는 행 (2026 history 없는 경우)
+            _fb_mask = (
+                (df_users['재직상태'] == '퇴사') &
+                (df_users['부서'].isin(_null_set) | df_users['부서'].isna()) &
+                ~df_users['직급'].isin(_exec_ranks)
+            )
+
+            for _idx in df_users.index[_fb_mask]:
+                _ed = (df_users.at[_idx, '_eff_deptNm'] or '').strip()
+                _eh = (df_users.at[_idx, '_eff_hqNm']   or '').strip()
+                _ev = (df_users.at[_idx, '_eff_divNm']  or '').strip()
+                _er = (df_users.at[_idx, '_eff_rankNm'] or '').strip()
+                _er = _rank_norm.get(_er, _er)  # RANK_NORMALIZE 적용
+
+                df_users.at[_idx, '직급'] = _er
+
+                # 임원 직급이면 M-Level 유지
+                if _er in _exec_ranks:
+                    df_users.at[_idx, '부서_그룹'] = 'M-Level'
+                    df_users.at[_idx, '_ui_dept']  = 'M-Level'
+                    continue
+
+                # 부서 (deptNm → hqNm → divisionNm fallback)
+                _dept_val = _ed or _eh or _ev
+                df_users.at[_idx, '부서'] = _dept_val
+
+                # 부서_그룹 재계산 (DEPT_SHOW_AS_TEAM > DEPT_SHOW_AS_HQ > div > hq > M-Level)
+                if _ed in _show_team:
+                    _grp = _ed
+                elif _eh in _show_hq_s:
+                    _grp = _eh
+                elif _ev:
+                    _grp = _ev
+                elif _eh:
+                    _grp = _eh
+                else:
+                    _grp = 'M-Level'
+
+                df_users.at[_idx, '부서_그룹'] = _grp
+                df_users.at[_idx, '_ui_dept']  = _dept_val if _dept_val else _grp
 
     # 비표준 직급 → 표준 직급 정규화 (config.RANK_NORMALIZE)
     # df_users·로그 전체에 일괄 적용 → 피벗·직급그룹·명부 모두 반영
