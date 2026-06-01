@@ -178,7 +178,12 @@ def _build_users_df(records: list) -> pd.DataFrame:
             eff_cap = config.CURRENT_YEAR
 
         _valid = [y for y in history_by_year if y <= eff_cap]
-        eff_h  = history_by_year[max(_valid)] if _valid else {}
+        # 부서 정보가 있는 연도 우선 선택 (2026 데이터가 있어도 모두 None이면 이전 연도로 fallback)
+        def _has_dept(h):
+            return any(h.get(k) for k in ('deptNm', 'hqNm', 'divisionNm'))
+        _valid_with_dept = [y for y in _valid if _has_dept(history_by_year[y])]
+        _eff_year = max(_valid_with_dept) if _valid_with_dept else (max(_valid) if _valid else None)
+        eff_h  = history_by_year[_eff_year] if _eff_year else {}
         row['_eff_deptNm'] = (eff_h.get('deptNm')         or '').strip()
         row['_eff_hqNm']   = (eff_h.get('hqNm')           or '').strip()
         row['_eff_divNm']  = (eff_h.get('divisionNm')     or '').strip()
@@ -690,17 +695,19 @@ def map_all(df_users, df_login, df_download, df_proposal):
         # CURRENT_YEAR history가 없는 퇴사자(전년도 이전 퇴사)는 부서='' → M-Level이 됨
         # _eff_* 컬럼(퇴사년도 기준 가장 최근 history)으로 부서·직급 재계산
         # ※ 로그 조인은 active_users(재직자) 기준이므로 퇴사자 로그 기록에는 영향 없음
-        if '_eff_deptNm' in df_users.columns and '재직상태' in df_users.columns:
+        if '_eff_deptNm' in df_users.columns:
             _null_set   = {'', 'nan', 'NaN', 'None'}
             _rank_norm  = getattr(config, 'RANK_NORMALIZE', {})
             _show_team  = set(getattr(config, 'DEPT_SHOW_AS_TEAM', []))
             _show_hq_s  = set(config.DEPT_SHOW_AS_HQ)
+            _test_unos_fb = set(str(u).zfill(3) for u in getattr(config, 'TEST_ACCOUNT_USERNOS', []))
 
-            # 퇴사자 중 부서가 비어있는 행 (2026 history 없는 경우)
+            # 부서가 비어있는 행 전체 (재직·퇴사 무관) — 2026 데이터 없는 경우 _eff_로 복원
+            # Test 계정·임원 제외
             _fb_mask = (
-                (df_users['재직상태'] == '퇴사') &
                 (df_users['부서'].isin(_null_set) | df_users['부서'].isna()) &
-                ~df_users['직급'].isin(_exec_ranks)
+                ~df_users['직급'].isin(_exec_ranks) &
+                ~df_users['UserNo'].isin(_test_unos_fb)
             )
 
             for _idx in df_users.index[_fb_mask]:

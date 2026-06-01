@@ -125,6 +125,22 @@ if 'df_users' not in st.session_state or reload_requested:
             except Exception:
                 pass
 
+            # 프로필 수동 오버라이드 적용 (profile_overrides.json)
+            # 부서·직급·사업부 등 API 미등록 항목 수동 보정
+            try:
+                import json as _json
+                _po_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "profile_overrides.json")
+                if os.path.exists(_po_path) and not df_users.empty and 'UserNo' in df_users.columns:
+                    with open(_po_path, 'r', encoding='utf-8') as _f:
+                        _profiles = _json.load(_f)
+                    for _uno, _fields in _profiles.items():
+                        _mask = df_users['UserNo'] == str(_uno)
+                        for _col, _val in _fields.items():
+                            if _col in df_users.columns:
+                                df_users.loc[_mask, _col] = _val
+            except Exception:
+                pass
+
             st.session_state['df_users'] = df_users
             st.session_state['df_login'] = df_login
             st.session_state['df_download'] = df_download
