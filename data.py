@@ -610,11 +610,13 @@ def map_all(df_users, df_login, df_download, df_proposal):
 
         return df
 
-    # 로그 조인용 마스터: 재직자만 사용 (퇴사자 로그는 분석 수치에서 제외)
-    active_users = df_users[df_users.get('재직상태', pd.Series('재직', index=df_users.index)) != '퇴사'] if '재직상태' in df_users.columns else df_users
-    df_login = join_master_info(df_login, active_users)
-    df_download = join_master_info(df_download, active_users)
-    df_proposal = join_master_info(df_proposal, active_users)
+    # 로그 조인용 마스터: 전체 직원(재직+퇴사) 사용
+    # → 퇴사자가 재직 당시 남긴 로그 기록도 집계에 포함되어야 함
+    # → join_master_info 내부에서 로그 연도 기준 {year}_부서명 컬럼을 사용하므로
+    #    2026년 퇴사자의 2026년 로그는 2026 데이터로 정확히 매핑됨
+    df_login    = join_master_info(df_login,    df_users)
+    df_download = join_master_info(df_download, df_users)
+    df_proposal = join_master_info(df_proposal, df_users)
 
     # 4. 마스터(df_users) 자체에도 현재 연도 기준 표준 컬럼 추가 (apply 루프 제거)
     if not df_users.empty:
