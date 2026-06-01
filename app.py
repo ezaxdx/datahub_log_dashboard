@@ -220,9 +220,49 @@ for name, info in pages.items():
         st.session_state['current_page'] = name
         st.rerun()
 
-st.sidebar.markdown("<div style='height: 120px;'></div>", unsafe_allow_html=True)
+st.sidebar.markdown("<div style='height: 20px;'></div>", unsafe_allow_html=True)
 
-# D. 하단 유틸리티 (이미지 스타일 준수)
+# D. 알림 자동화 로그
+_log_path = os.path.join(BASE_DIR, "checkpoints", "notifier_log.txt")
+with st.sidebar.expander("🔔 알림 자동화 로그", expanded=False):
+    if os.path.exists(_log_path):
+        try:
+            # UTF-16(PowerShell) / UTF-8(cmd) / CP949(시스템) 순으로 시도
+            _log_text = None
+            for _enc in ['utf-16', 'utf-8', 'cp949']:
+                try:
+                    with open(_log_path, 'r', encoding=_enc) as _f:
+                        _log_text = _f.read()
+                    break
+                except Exception:
+                    continue
+
+            if _log_text:
+                # 유의미한 줄만 추출 (Notifier/알림 관련 줄)
+                _lines = [l.strip() for l in _log_text.splitlines() if l.strip()]
+                _key_lines = [l for l in _lines if any(k in l for k in
+                    ['알림 체크', 'Notifier', 'Email', '이메일', '알림 기준', '위험 인원', '신규 알림', '구간'])]
+                if _key_lines:
+                    # 최근 10줄만
+                    for _line in _key_lines[-10:]:
+                        if '위험 인원' in _line or 'alert' in _line.lower():
+                            st.markdown(f"🚨 `{_line}`")
+                        elif '완료' in _line or 'ok' in _line.lower():
+                            st.markdown(f"✅ `{_line}`")
+                        else:
+                            st.markdown(f"ℹ️ `{_line}`")
+                else:
+                    st.caption("로그 기록 없음")
+            else:
+                st.caption("로그를 읽을 수 없습니다.")
+        except Exception as _e:
+            st.caption(f"로그 읽기 오류: {_e}")
+    else:
+        st.caption("아직 실행 기록이 없습니다.\n작업 스케줄러가 실행되면 여기에 표시됩니다.")
+
+st.sidebar.markdown("<div style='height: 80px;'></div>", unsafe_allow_html=True)
+
+# E. 하단 유틸리티 (이미지 스타일 준수)
 st.sidebar.markdown("""
 <div style="padding: 0 12px;">
     <div style="background-color: #1e293b; color: white; padding: 12px; border-radius: 8px; text-align: center; font-size: 13px; font-weight: 600; margin-bottom: 8px; cursor: pointer;">
