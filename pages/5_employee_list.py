@@ -75,9 +75,12 @@ if not f_user_list.empty:
 
     st.markdown(f'<div class="headline" style="font-size: 20px; font-weight: 800; color: #1e293b; margin-bottom: 16px;">👥 임직원 목록 <span style="font-size: 14px; font-weight: 400; color: #64748b; margin-left: 8px;">(표시 {len(f_user_list):,}명)</span></div>', unsafe_allow_html=True)
 
-    # 기본 정렬: 팀(부서명) → 본부/실 → 사업부 (sort_cols는 위에서 이미 계산됨)
-    if sort_cols:
-        f_user_list = f_user_list.sort_values(sort_cols, na_position='last').reset_index(drop=True)
+    # 기본 정렬: Test 계정 최하단 → 부서명 → 본부/실 → 사업부 → 이름 순
+    _test_unos = set(str(u).zfill(3) for u in config.TEST_ACCOUNT_USERNOS)
+    f_user_list = f_user_list.copy()
+    f_user_list['_is_test'] = f_user_list['UserNo'].isin(_test_unos).astype(int)  # 0=일반, 1=테스트
+    sort_keys = ['_is_test'] + sort_cols + (['임직원명'] if '임직원명' in f_user_list.columns else [])
+    f_user_list = f_user_list.sort_values(sort_keys, na_position='last').drop(columns='_is_test').reset_index(drop=True)
 
     # 표시용 컬럼 정제
     email_col = config.COL_NAME_EMAIL
