@@ -287,13 +287,22 @@ with st.sidebar.expander("🔍 Filter View", expanded=False):
     div_col  = config.YEAR_COL_DIVISION.format(year=config.CURRENT_YEAR)
 
     if not df_u.empty:
-        # data.py에서 이미 표준화된 '부서' 및 '_ui_dept'가 제공됨
-        all_depts = sorted(df_u['_ui_dept'].unique().tolist())
-        
+        # 부서 필터: 재직자만 기준 (퇴사자의 구 부서명 혼재 방지)
+        # Test 계정 및 빈 값도 완전 제외
+        _test_unos_ui = set(str(u).zfill(3) for u in config.TEST_ACCOUNT_USERNOS)
+        _null_strs_ui = {'', 'nan', 'NaN', 'None', 'Test', 'M-Level'}
+        df_u_active_ui = df_u[
+            (df_u.get('재직상태', '재직') == '재직') &
+            ~df_u['UserNo'].isin(_test_unos_ui) &
+            ~df_u['_ui_dept'].astype(str).str.strip().isin(_null_strs_ui)
+        ] if '재직상태' in df_u.columns else df_u
+
+        all_depts = sorted(df_u_active_ui['_ui_dept'].unique().tolist())
+
         exclude_userno = config.DEFAULT_EXCLUDE_USERNO
         exclude_names = df_u[df_u['UserNo'].isin(exclude_userno)]['_ui_dept'].tolist()
         exclude_depts = config.DEFAULT_EXCLUDE_DEPTS + exclude_names
-        
+
         # 기본 선택될 부서 리스트 먼저 정의
         default_depts = [d for d in all_depts if d not in exclude_depts]
 
