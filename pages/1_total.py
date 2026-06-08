@@ -113,7 +113,7 @@ def get_pattern_count(df, pattern):
     if df.empty or '경로 메뉴명' not in df.columns: return 0
     return len(df[df['경로 메뉴명'].astype(str).str.contains(pattern, na=False)])
 
-kpi_cols = st.columns(5)
+kpi_cols = st.columns(6)
 with kpi_cols[0]:
     d = calc_delta(len(f_login), len(p_login)) if c_s else None
     render_metric_card("총 로그인", f"{len(f_login):,}", d)
@@ -123,8 +123,8 @@ with kpi_cols[1]:
     render_metric_card("제안서 DL", f"{len(f_proposal):,}", d)
 
 with kpi_cols[2]:
-    curr = get_pattern_count(f_download, '프로젝트')
-    prev = get_pattern_count(p_download, '프로젝트')
+    curr = get_pattern_count(f_download, '프로젝트 찾기')   # '프로젝트 실적' 중복 제외
+    prev = get_pattern_count(p_download, '프로젝트 찾기')
     d = calc_delta(curr, prev) if c_s else None
     render_metric_card("프로젝트 찾기", f"{curr:,}", d)
 
@@ -139,6 +139,12 @@ with kpi_cols[4]:
     prev = get_pattern_count(p_download, '서포트')
     d = calc_delta(curr, prev) if c_s else None
     render_metric_card("서포트 센터", f"{curr:,}", d)
+
+with kpi_cols[5]:
+    curr = get_pattern_count(f_download, '프로젝트 실적')
+    prev = get_pattern_count(p_download, '프로젝트 실적')
+    d = calc_delta(curr, prev) if c_s else None
+    render_metric_card("프로젝트 실적", f"{curr:,}", d)
 
 st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
 
