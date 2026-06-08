@@ -114,7 +114,7 @@ for c in count_cols:
 with col_s1_left:
     st.markdown('<div class="headline" style="font-size: 18px; font-weight: 700; color: #1e293b; margin-bottom: 16px;">👤 직원별 활동 상세내역</div>', unsafe_allow_html=True)
     # 조건부 서식 적용 (제안서 DL 컬럼에만 빨간색 표시)
-    def highlight_proposal(val):
+    def highlight_over_threshold(val):
         color = '#ef4444' if isinstance(val, (int, float)) and val >= warning_threshold else ''
         background = '#fee2e2' if color else ''
         return f'color: {color}; background-color: {background}; font-weight: bold;' if color else ''
@@ -123,8 +123,9 @@ with col_s1_left:
     _activity_sorted.index += 1
     _activity_sorted.index.name = 'NO.'
     _act_num = _activity_sorted.select_dtypes(include='number').columns.tolist()
+    _dl_cols = ['제안서 DL', '프로젝트', '프로젝트 실적', '운영자료', '서포트 센터']
     styled_activity = _activity_sorted.style.map(
-        highlight_proposal, subset=['제안서 DL']
+        highlight_over_threshold, subset=_dl_cols
     ).set_properties(subset=_act_num, **{'text-align': 'center'})
     st.dataframe(styled_activity, use_container_width=True, hide_index=False, height=300)
 
