@@ -59,7 +59,9 @@ DEFAULT_EXCLUDE_DEPTS = [
 ]
 
 # 완전 제외 대상 (df_users + 로그 모두 제거 → 명부에도 안 보임)
-DEFAULT_EXCLUDE_USERNO = []
+DEFAULT_EXCLUDE_USERNO = [
+    "416",   # 김미선: 이즈피엠피 DDP점 F&B 매니저 — 당사 소속 아님
+]
 
 # 로그에서만 제외 (df_users 유지 → 명부에 보임, 사용 카운팅 제외)
 LOG_EXCLUDE_USERNOS = []   # 로그 전용 제외 계정 (현재 없음 — 곽은경은 사이드바 필터로 처리)
