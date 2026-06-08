@@ -11,22 +11,20 @@ NOTIFIED_RECORDS_FILE = "checkpoints/notified_records.json"
 def get_check_interval():
     """
     현재 시각을 기준으로 분석할 시작 시각을 계산합니다.
-    - 10:00 ~ 15:59 사이 실행 시: 오늘 10:01부터 현재까지
-    - 16:00 ~ 익일 09:59 사이 실행 시: 최근 오후 16:01부터 현재까지
+    - 09:00 ~ 15:59 사이 실행 시 (10:00 task): 어제 16:00 ~ 지금 (야간 누적 구간)
+    - 16:00 이후 실행 시 (16:00 task): 오늘 09:00 ~ 지금 (주간 누적 구간)
+    - 09:00 이전 (새벽): 어제 16:00 ~ 지금 (야간 누적 구간)
     """
     now = datetime.now()
     curr_hour = now.hour
-    
-    if 10 <= curr_hour < 16:
-        # 오전 10시 이후 ~ 오후 4시 이전
-        start_time = now.replace(hour=10, minute=1, second=0, microsecond=0)
-    elif curr_hour >= 16:
-        # 오늘 오후 4시 이후
-        start_time = now.replace(hour=16, minute=1, second=0, microsecond=0)
+
+    if curr_hour >= 16:
+        # 16:00 task: 오늘 주간 전체 누적 (9:00~지금)
+        start_time = now.replace(hour=9, minute=0, second=0, microsecond=0)
     else:
-        # 오늘 오전 10시 이전 (어제 오후 4시부터 시작)
-        start_time = (now - timedelta(days=1)).replace(hour=16, minute=1, second=0, microsecond=0)
-        
+        # 10:00 task (또는 새벽): 어제 16:00부터 지금까지 야간 누적
+        start_time = (now - timedelta(days=1)).replace(hour=16, minute=0, second=0, microsecond=0)
+
     return start_time, now
 
 def get_notified_records():
@@ -67,8 +65,9 @@ def run_auto_check(df_proposal, df_download):
     # 1. 분석 구간 설정 (사용자 요청: 오전 10시 / 오후 4시 기준)
     start_time, end_time = get_check_interval()
     # 구간 구분을 위한 키 생성 (예: 2024-04-20_10, 2024-04-20_16)
-    interval_hour = 10 if start_time.hour == 10 else 16
-    interval_key = f"{start_time.strftime('%Y-%m-%d')}_{interval_hour}"
+    # day: 오늘 9시~16시 주간 구간 / night: 어제 16시~오늘 오전 야간 구간
+    session_type = "day" if start_time.hour == 9 else "night"
+    interval_key = f"{now.strftime('%Y-%m-%d')}_{session_type}"
     
     print(f"[Notifier] 구간 분석 시작: {start_time} ~ {end_time} (Key: {interval_key})")
 
