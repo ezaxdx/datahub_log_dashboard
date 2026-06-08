@@ -236,6 +236,12 @@ if not tl_data.empty:
 else:
     st.info("해당하는 다운로드 기록이 없습니다.")
 
+st.markdown("""
+<div style='font-size: 12px; color: #94a3b8; margin-top: 8px; padding: 8px 12px; background: #f8fafc; border-radius: 6px; border-left: 3px solid #e2e8f0;'>
+    💡 <b>순다운로드수</b>란? 설정한 시간 내에 열람한 <b>서로 다른 제안서의 수</b>입니다. 같은 제안서를 여러 번 열어도 1건으로 집계됩니다.
+</div>
+""", unsafe_allow_html=True)
+
 st.markdown("<div style='height: 30px;'></div>", unsafe_allow_html=True)
 
 # --- 6. 섹션 3: 다운로드 현황 (Top 7 / Top 10) ---
