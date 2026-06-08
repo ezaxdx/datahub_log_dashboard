@@ -172,10 +172,10 @@ with col_mid_left:
             marker=dict(size=6),
             fill='tozeroy', fillcolor='rgba(15, 23, 42, 0.05)'
         ))
-        # 다운로드 합계 (점선)
+        # 제안서 다운로드 합계 (점선)
         fig.add_trace(go.Scatter(
-            x=all_trends['date'], y=all_trends['다운로드합계'], 
-            name='다운로드 합계', 
+            x=all_trends['date'], y=all_trends['다운로드합계'],
+            name='제안서 다운로드 합계',
             mode='lines+markers',
             line=dict(color='#10b981', width=3, shape='spline', smoothing=0.5, dash='dot'),
             marker=dict(size=6),
