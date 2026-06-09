@@ -144,7 +144,7 @@ with kpi_cols[5]:
     curr = get_pattern_count(f_download, '프로젝트 실적')
     prev = get_pattern_count(p_download, '프로젝트 실적')
     d = calc_delta(curr, prev) if c_s else None
-    render_metric_card("프로젝트 실적", f"{curr:,}", d)
+    render_metric_card("프로젝트 실적", f"{curr:,}", d, desc="※ '26.05.08 집계 시작")
 
 st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
 
