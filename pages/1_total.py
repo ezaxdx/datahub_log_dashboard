@@ -6,13 +6,13 @@ from datetime import datetime, timedelta
 import config
 
 # --- [UI Style Helper: Metrics] ---
-def render_metric_card(label, value, delta=None):
+def render_metric_card(label, value, delta=None, desc=None):
     delta_html = ""
     if delta:
         d_val, d_color = delta
         delta_html = f'<div style="font-size: 11px; font-weight: 700; color: {d_color};">{d_val}</div>'
-    
-    html = f'<div class="metric-card"><div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;"><div style="color: #64748b; font-size: 13px; font-weight: 700; text-transform: uppercase; font-family: \'Inter\';">{label}</div>{delta_html}</div><div style="color: #1e293b; font-size: 28px; font-weight: 800; font-family: \'Manrope\';">{value}</div></div>'
+    desc_html = f'<div style="font-size: 11px; color: #94a3b8; margin-top: 6px; font-family: \'Inter\';">{desc}</div>' if desc else ""
+    html = f'<div class="metric-card"><div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;"><div style="color: #64748b; font-size: 13px; font-weight: 700; text-transform: uppercase; font-family: \'Inter\';">{label}</div>{delta_html}</div><div style="color: #1e293b; font-size: 28px; font-weight: 800; font-family: \'Manrope\';">{value}</div>{desc_html}</div>'
     st.markdown(html, unsafe_allow_html=True)
 
 # --- [Page Header] ---
