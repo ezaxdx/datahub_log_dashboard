@@ -5,7 +5,11 @@ from datetime import datetime, timedelta, date as date_type
 import config
 import data
 import os
-import notifier  # 추가
+try:
+    import notifier  # 로컬 전용 (gitignore) — 없으면 알림 기능만 비활성화
+    _notifier_available = True
+except ImportError:
+    _notifier_available = False
 
 st.set_page_config(page_title="EZ데이터허브 사용 로그 대시보드",layout="wide")
 
@@ -149,17 +153,20 @@ if 'df_users' not in st.session_state or reload_requested:
             if 'warning_threshold' not in st.session_state:
                 st.session_state['warning_threshold'] = 10
             # --- [자동 위험 감지 및 이메일 알림] ---
-            try:
-                status = notifier.run_auto_check(df_proposal, df_download)
-                if status and "message" in status:
-                    if status["status"] == "alert":
-                        st.toast(f"데이터 로드 완료! {status['message']}", icon="🚨")
+            if _notifier_available:
+                try:
+                    status = notifier.run_auto_check(df_proposal, df_download)
+                    if status and "message" in status:
+                        if status["status"] == "alert":
+                            st.toast(f"데이터 로드 완료! {status['message']}", icon="🚨")
+                        else:
+                            st.toast(f"데이터 로드 완료! {status['message']}", icon="✅")
                     else:
-                        st.toast(f"데이터 로드 완료! {status['message']}", icon="✅")
-                else:
-                    st.toast("데이터 로드 완료!")
-            except Exception as notify_e:
-                print(f"알림 발송 중 오류 발생: {notify_e}")
+                        st.toast("데이터 로드 완료!")
+                except Exception as notify_e:
+                    print(f"알림 발송 중 오류 발생: {notify_e}")
+            else:
+                st.toast("데이터 로드 완료!")
                 st.toast("데이터 로드 완료! (알림 점검 중 오류발생)", icon="⚠️")
                 
         except Exception as e:
