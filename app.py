@@ -167,7 +167,6 @@ if 'df_users' not in st.session_state or reload_requested:
                     print(f"알림 발송 중 오류 발생: {notify_e}")
             else:
                 st.toast("데이터 로드 완료!")
-                st.toast("데이터 로드 완료! (알림 점검 중 오류발생)", icon="⚠️")
                 
         except Exception as e:
             st.error(f"데이터 로드 중 오류 발생: {e}")
