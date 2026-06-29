@@ -296,7 +296,7 @@ with st.sidebar.expander("🔍 Filter View", expanded=False):
         # 부서 필터: 재직자만 기준 (퇴사자의 구 부서명 혼재 방지)
         # Test 계정 및 빈 값도 완전 제외
         _test_unos_ui = set(str(u).zfill(3) for u in config.TEST_ACCOUNT_USERNOS)
-        _null_strs_ui = {'', 'nan', 'NaN', 'None', 'Test', 'M-Level'}
+        _null_strs_ui = {'', 'nan', 'NaN', 'None', 'Test'}
         df_u_active_ui = df_u[
             (df_u.get('재직상태', '재직') == '재직') &
             ~df_u['UserNo'].isin(_test_unos_ui) &
