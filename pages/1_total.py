@@ -214,7 +214,8 @@ st.markdown("<div style='height: 5px;'></div>", unsafe_allow_html=True)
 # 데이터 준비
 # 순사용자: 제안서 OR 일반 다운로드 기록 있는 유니크 UserNo (날짜필터 적용, 퇴사자 포함)
 # 전체인원: 재직자만 기준 (f_u_active) — 퇴사자는 분모에서 제외
-active_p = f_proposal[['UserNo', '부서', '사업부', '직급']]
+_p_cols = ['UserNo', '부서', '사업부', '직급']
+active_p = f_proposal[_p_cols] if all(c in f_proposal.columns for c in _p_cols) else pd.DataFrame(columns=_p_cols)
 active_d = f_download[f_download['경로 메뉴명'].astype(str).str.contains('프로젝트|운영자료|서포트', na=False)][['UserNo', '부서', '사업부', '직급']]
 active_users_all = pd.concat([active_p, active_d]).drop_duplicates(subset=['UserNo'])
 
