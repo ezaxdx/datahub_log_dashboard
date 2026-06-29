@@ -62,13 +62,15 @@ for col in [
 if not f_user_list.empty:
     cnt_active  = len(df_u[df_u['재직상태'] == '재직']) if '재직상태' in df_u.columns else len(df_u)
     cnt_retired = len(df_u[df_u['재직상태'] == '퇴사']) if '재직상태' in df_u.columns else 0
+    cnt_test    = len(df_u[df_u['재직상태'] == 'Test']) if '재직상태' in df_u.columns else 0
 
     with col_count:
         st.markdown(
             f"<div style='padding-top:8px; font-size:13px; color:#64748b;'>"
             f"재직 <b style='color:#1e293b'>{cnt_active}</b>명 &nbsp;|&nbsp; "
             f"퇴사 <b style='color:#94a3b8'>{cnt_retired}</b>명 &nbsp;|&nbsp; "
-            f"합계 <b style='color:#1e293b'>{cnt_active + cnt_retired}</b>명"
+            f"Test <b style='color:#f59e0b'>{cnt_test}</b>명 &nbsp;|&nbsp; "
+            f"합계 <b style='color:#1e293b'>{cnt_active + cnt_retired + cnt_test}</b>명"
             f"</div>",
             unsafe_allow_html=True
         )
@@ -92,10 +94,12 @@ if not f_user_list.empty:
     rename_map = {'임직원명': '이름', '_ui_dept': '부서'}
     display_list = display_list.rename(columns=rename_map)
 
-    # 퇴사자 행 회색 처리
+    # 퇴사자/Test 행 색상 처리
     def highlight_retired(row):
         if row.get('재직상태') == '퇴사':
             return ['color: #94a3b8'] * len(row)
+        if row.get('재직상태') == 'Test':
+            return ['color: #f59e0b; font-style: italic'] * len(row)
         return [''] * len(row)
 
     display_list = display_list.reset_index(drop=True)
@@ -146,7 +150,7 @@ with st.expander("✏️ 재직 상태 수동 편집", expanded=False):
         col_cfg  = {c: st.column_config.TextColumn(disabled=True) for c in readonly}
         col_cfg['재직상태'] = st.column_config.SelectboxColumn(
             label='재직상태',
-            options=['재직', '퇴사'],
+            options=['재직', '퇴사', 'Test'],
             required=True,
         )
 

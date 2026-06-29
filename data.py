@@ -832,8 +832,17 @@ def run_all():
     # UserNo 정규화 함수
     def _norm_uno(s): return str(s).strip().replace('.0', '').zfill(3)
 
-    # 테스트 계정 UserNo (config에서 로드) → 로그 제외 + 명부 'Test'로 표시
+    # 테스트 계정 UserNo (config + status_overrides.json의 Test 상태) → 로그 제외
     _test_unos = set(_norm_uno(u) for u in getattr(config, 'TEST_ACCOUNT_USERNOS', []))
+    try:
+        import json as _json, os as _os
+        _ov_path = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), "status_overrides.json")
+        if _os.path.exists(_ov_path):
+            with open(_ov_path, 'r', encoding='utf-8') as _f:
+                _ov = _json.load(_f)
+            _test_unos |= {_norm_uno(k) for k, v in _ov.items() if v == 'Test'}
+    except Exception:
+        pass
     # 완전 제외 대상 → df_users + 로그 모두 제거 (명부에도 안 보임)
     _exclude_unos = set(_norm_uno(u) for u in getattr(config, 'DEFAULT_EXCLUDE_USERNO', []))
     # 로그 전용 제외 → df_users 유지 (명부에 보임), 사용 카운팅만 제외
