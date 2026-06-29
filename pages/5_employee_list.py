@@ -6,6 +6,7 @@ import config
 
 # --- 재직 상태 오버라이드 헬퍼 ---
 _OVERRIDES_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "status_overrides.json")
+_PROFILE_OVERRIDES_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "profile_overrides.json")
 
 def _load_overrides() -> dict:
     try:
@@ -18,6 +19,19 @@ def _load_overrides() -> dict:
 
 def _save_overrides(overrides: dict):
     with open(_OVERRIDES_PATH, 'w', encoding='utf-8') as f:
+        json.dump(overrides, f, ensure_ascii=False, indent=2)
+
+def _load_profile_overrides() -> dict:
+    try:
+        if os.path.exists(_PROFILE_OVERRIDES_PATH):
+            with open(_PROFILE_OVERRIDES_PATH, 'r', encoding='utf-8') as f:
+                return json.load(f)
+    except Exception:
+        pass
+    return {}
+
+def _save_profile_overrides(overrides: dict):
+    with open(_PROFILE_OVERRIDES_PATH, 'w', encoding='utf-8') as f:
         json.dump(overrides, f, ensure_ascii=False, indent=2)
 
 # --- [Page Header] ---
@@ -126,10 +140,10 @@ else:
 # ────────────────────────────────────────────
 st.markdown("<div style='height: 24px;'></div>", unsafe_allow_html=True)
 
-with st.expander("✏️ 재직 상태 수동 편집", expanded=False):
+with st.expander("✏️ 재직 상태 / 부서 수동 편집", expanded=False):
     st.caption(
-        "API에서 입사일자·퇴사일자가 부정확하게 들어올 경우 여기서 직접 수정하세요. "
-        "**저장** 하면 대시보드 전체에 즉시 반영되며, 다음 데이터 동기화 후에도 유지됩니다."
+        "재직상태·부서를 직접 수정하세요. **Test** 로 지정하면 모든 집계에서 즉시 제외됩니다. "
+        "**저장** 후 데이터가 자동 재로드됩니다."
     )
 
     if df_u.empty:
@@ -145,14 +159,15 @@ with st.expander("✏️ 재직 상태 수동 편집", expanded=False):
         edit_df = edit_src[edit_avail].copy().rename(columns={'임직원명': '이름', '_ui_dept': '부서'})
         edit_df = edit_df.reset_index(drop=True)
 
-        # 편집 불가 컬럼 (재직상태만 수정 가능)
-        readonly = [c for c in edit_df.columns if c != '재직상태']
+        # 편집 불가 컬럼 (재직상태·부서만 수정 가능)
+        readonly = [c for c in edit_df.columns if c not in ('재직상태', '부서')]
         col_cfg  = {c: st.column_config.TextColumn(disabled=True) for c in readonly}
         col_cfg['재직상태'] = st.column_config.SelectboxColumn(
             label='재직상태',
             options=['재직', '퇴사', 'Test'],
             required=True,
         )
+        col_cfg['부서'] = st.column_config.TextColumn(label='부서')
 
         edited = st.data_editor(
             edit_df,
@@ -164,26 +179,35 @@ with st.expander("✏️ 재직 상태 수동 편집", expanded=False):
         )
 
         if st.button("💾 저장", type="primary", key="save_status_btn"):
-            changed_mask = edited['재직상태'] != edit_df['재직상태']
+            status_changed = edited['재직상태'] != edit_df['재직상태']
+            dept_changed   = edited['부서'] != edit_df['부서']
+            changed_mask   = status_changed | dept_changed
+
             if not changed_mask.any():
                 st.info("변경 사항이 없습니다.")
             else:
-                changed_rows = edited[changed_mask]
+                # 재직상태 오버라이드 저장
+                if status_changed.any():
+                    overrides = _load_overrides()
+                    for _, row in edited[status_changed].iterrows():
+                        overrides[str(row['UserNo'])] = row['재직상태']
+                    _save_overrides(overrides)
 
-                # 오버라이드 파일 업데이트
-                overrides = _load_overrides()
-                for _, row in changed_rows.iterrows():
-                    overrides[str(row['UserNo'])] = row['재직상태']
-                _save_overrides(overrides)
+                # 부서 오버라이드 저장 (profile_overrides.json)
+                if dept_changed.any():
+                    profiles = _load_profile_overrides()
+                    for _, row in edited[dept_changed].iterrows():
+                        uno = str(row['UserNo'])
+                        if uno not in profiles:
+                            profiles[uno] = {}
+                        profiles[uno]['_ui_dept'] = row['부서']
+                        profiles[uno]['부서'] = row['부서']
+                    _save_profile_overrides(profiles)
 
-                # 세션 상태 즉시 반영
-                df_u_updated = st.session_state.get('df_users', pd.DataFrame()).copy()
-                if not df_u_updated.empty:
-                    for _, row in changed_rows.iterrows():
-                        mask = df_u_updated['UserNo'] == str(row['UserNo'])
-                        df_u_updated.loc[mask, '재직상태'] = row['재직상태']
-                    st.session_state['df_users'] = df_u_updated
+                # 세션 초기화 → run_all() 재실행 (Test 제외 즉시 반영)
+                for k in ['df_users', 'df_login', 'df_download', 'df_proposal']:
+                    st.session_state.pop(k, None)
 
-                names = ', '.join(changed_rows['이름'].tolist())
+                names = ', '.join(edited[changed_mask]['이름'].tolist())
                 st.success(f"✅ {changed_mask.sum()}명 저장 완료: {names}")
                 st.rerun()
