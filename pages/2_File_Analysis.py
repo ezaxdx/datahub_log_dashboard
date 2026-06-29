@@ -75,7 +75,7 @@ user_base = f_u[['UserNo', '이름', '부서', '직급']].copy()
 
 # 활동 집계
 login_agg = f_login.groupby('UserNo').size().reset_index(name='총로그인수')
-proposal_agg = f_proposal.groupby('UserNo').size().reset_index(name='제안서다운로드')
+proposal_agg = f_proposal.groupby('UserNo').size().reset_index(name='제안서다운로드') if not f_proposal.empty and 'UserNo' in f_proposal.columns else pd.DataFrame(columns=['UserNo', '제안서다운로드'])
 
 def get_cat_agg(df, pattern, col_name):
     if df.empty: return pd.DataFrame(columns=['UserNo', col_name])

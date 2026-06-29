@@ -330,7 +330,9 @@ def _build_proposal_df(records: list) -> pd.DataFrame:
             "문서경로":  r.get("itemId", ""),
         })
 
-    return pd.DataFrame(rows) if rows else pd.DataFrame()
+    if rows:
+        return pd.DataFrame(rows)
+    return pd.DataFrame(columns=["PRS ID", "등록일", "등록시간", "문서경로"])
 
 
 @st.cache_data(ttl=600)
@@ -779,39 +781,45 @@ def preprocess_all(df_users, df_login, df_download, df_proposal):
     날짜 통일, 연도 추출, 직급 그룹화를 수행합니다.
     """
     def process_df(df):
-        if df.empty: return df
+        if df.empty:
+            date_time_pairs_check = [('등록일', '등록시간'), ('다운로드 일자', '다운로드 시간'), ('로그인 일자', '로그인 시간')]
+            if any(d_col in df.columns for d_col, _ in date_time_pairs_check):
+                df = df.copy()
+                df['date'] = pd.Series(dtype='datetime64[ns]')
+                df['year'] = pd.Series(dtype='Int64')
+            return df
         df = df.copy()
-        
+
         # 1. 날짜 및 시간 컬럼 통합 (유효한 데이터가 있는 컬럼 우선 탐색)
         date_time_pairs = [
             ('등록일', '등록시간'),
             ('다운로드 일자', '다운로드 시간'),
             ('로그인 일자', '로그인 시간')
         ]
-        
+
         best_date_series = None
         max_valid_dates = -1
-        
+
         for d_col, t_col in date_time_pairs:
             if d_col in df.columns:
                 if t_col in df.columns:
                     temp_date = pd.to_datetime(df[d_col].astype(str) + ' ' + df[t_col].astype(str), errors='coerce')
                 else:
                     temp_date = pd.to_datetime(df[d_col], errors='coerce')
-                
+
                 valid_count = temp_date.notna().sum()
                 if valid_count > max_valid_dates:
                     max_valid_dates = valid_count
                     best_date_series = temp_date
-                
+
                 # 모든 행이 유효하면 즉시 중단 (최적화)
                 if valid_count == len(df):
                     break
-        
+
         if best_date_series is not None:
             df['date'] = best_date_series
             df['year'] = df['date'].dt.year
-            
+
         return df
 
     df_login = process_df(df_login)
