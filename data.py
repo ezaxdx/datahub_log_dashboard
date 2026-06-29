@@ -314,10 +314,9 @@ def _build_proposal_df(records: list) -> pd.DataFrame:
         if prs_id in exclude_accounts or user_nm in exclude_accounts:
             continue
 
-        # 실제 다운로드(send) + 성공 + 임직원(prsId 있는 것)만 집계
-        # open = DRM 뷰어 열람만 (다운로드 아님), 외부인 열람 제외
-        if r.get("type") != "send":
-            continue
+        # TODO: API가 send 타입 반환 시 아래 주석 해제
+        # if r.get("type") != "send":
+        #     continue
         if r.get("resultYn") != "성공":
             continue
         if not prs_id:
